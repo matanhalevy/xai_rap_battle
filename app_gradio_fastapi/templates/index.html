@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GROK RAP BATTLE</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <!-- CRT Screen Effects -->
+    <div class="crt-overlay"></div>
+    <div class="scanlines"></div>
+    <div class="screen-flicker"></div>
+
+    <!-- Arcade Cabinet Frame -->
+    <div class="arcade-cabinet">
+        <!-- Top Marquee -->
+        <header class="marquee">
+            <div class="marquee-lights"></div>
+            <h1 class="game-title" data-text="GROK RAP BATTLE">GROK RAP BATTLE</h1>
+            <p class="subtitle blink">SELECT YOUR FIGHTERS</p>
+            <div class="coin-insert">INSERT COIN <span class="coin-blink">_</span></div>
+        </header>
+
+        <!-- Main Battle Arena -->
+        <main class="battle-arena">
+            <!-- Fighter A Panel (Left/Player 1) -->
+            <section class="fighter-panel player-1" id="fighter-a-panel">
+                <div class="player-tag">
+                    <span class="player-num">1P</span>
+                    <div class="health-bar">
+                        <div class="health-fill" id="health-a"></div>
+                        <div class="health-segments"></div>
+                    </div>
+                </div>
+
+                <div class="fighter-card">
+                    <div class="portrait-frame">
+                        <div class="portrait-border"></div>
+                        <div class="portrait" id="portrait-a">
+                            <div class="portrait-placeholder">
+                                <span class="question-mark">?</span>
+                            </div>
+                            <img id="portrait-img-a" src="" alt="Fighter A" style="display: none;">
+                        </div>
+                        <div class="portrait-scanline"></div>
+                    </div>
+                    <div class="fighter-name-plate">
+                        <input type="text" id="name-a" class="fighter-name-input" placeholder="FIGHTER NAME" maxlength="20">
+                    </div>
+                </div>
+
+                <div class="fighter-config">
+                    <div class="config-group">
+                        <label class="pixel-label">PORTRAIT</label>
+                        <div class="input-row">
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="image-a" accept="image/*" class="file-input">
+                                <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-a').click()">
+                                    <span class="btn-icon">+</span> FILE
+                                </button>
+                            </div>
+                            <button type="button" class="pixel-btn camera-btn" id="camera-btn-a" onclick="openCamera('A')">
+                                <span class="btn-icon">CAM</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-label">VISUAL STYLE</label>
+                        <textarea id="desc-a" class="pixel-textarea" rows="2" placeholder="intense rapper in streetwear, gold chains..."></textarea>
+                    </div>
+
+                    <div class="config-group">
+                        <div class="style-voice-row">
+                            <div class="style-col">
+                                <label class="pixel-label">RAP STYLE</label>
+                                <div class="pixel-dropdown" id="dropdown-style-a" data-value="UK Grime 1 (Stormzy)">
+                                    <div class="pixel-dropdown-selected">
+                                        <span class="pixel-dropdown-text">UK GRIME (STORMZY)</span>
+                                        <span class="pixel-dropdown-arrow">▼</span>
+                                    </div>
+                                    <div class="pixel-dropdown-options">
+                                        <div class="pixel-dropdown-option selected" data-value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</div>
+                                        <div class="pixel-dropdown-option" data-value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</div>
+                                        <div class="pixel-dropdown-option" data-value="Toronto Rap (Drake)">TORONTO (DRAKE)</div>
+                                        <div class="pixel-dropdown-option" data-value="West Coast (Kendrick)">WEST COAST (KENDRICK)</div>
+                                    </div>
+                                </div>
+                                <select id="style-a" class="pixel-select compact" style="display:none;">
+                                    <option value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</option>
+                                    <option value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</option>
+                                    <option value="Toronto Rap (Drake)">TORONTO (DRAKE)</option>
+                                    <option value="West Coast (Kendrick)">WEST COAST (KENDRICK)</option>
+                                </select>
+                            </div>
+                            <div class="voice-col">
+                                <label class="pixel-label">VOICE (CLONE)</label>
+                                <div class="input-row">
+                                    <button type="button" class="pixel-btn upload-btn compact" onclick="document.getElementById('voice-a').click()">
+                                        <span class="btn-icon">+</span>
+                                    </button>
+                                    <input type="file" id="voice-a" accept="audio/*" class="hidden-input">
+                                    <div class="voice-status" id="voice-status-a">No voice</div>
+                                    <button type="button" class="pixel-btn mic-btn" id="mic-btn-a" onclick="toggleRecording('A')">
+                                        REC
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-label">RAP LYRICS</label>
+                        <textarea id="lyrics-a" class="pixel-textarea lyrics" rows="6" placeholder="Yo, I step into the ring..."></textarea>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VS Center Divider -->
+            <section class="vs-center">
+                <div class="vs-container">
+                    <div class="vs-flames left"></div>
+                    <div class="vs-emblem">
+                        <span class="vs-text" data-text="VS">VS</span>
+                    </div>
+                    <div class="vs-flames right"></div>
+                </div>
+
+                <!-- Shared Battle Config -->
+                <div class="battle-config">
+                    <div class="config-group">
+                        <label class="pixel-label center">BATTLE THEME</label>
+                        <input type="text" id="theme" class="pixel-input" placeholder="cyberpunk neon city">
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-label">BEAT STYLE</label>
+                        <select id="beat-style" class="pixel-select">
+                            <option value="trap">TRAP</option>
+                            <option value="boom bap">BOOM BAP</option>
+                            <option value="drill">DRILL</option>
+                            <option value="west coast">WEST COAST</option>
+                        </select>
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-checkbox-label">
+                            <input type="checkbox" id="test-mode" checked>
+                            <span class="checkbox-custom"></span>
+                            SHORT VIDEO (2 ROUNDS)
+                        </label>
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-checkbox-label">
+                            <input type="checkbox" id="audio-only" checked>
+                            <span class="checkbox-custom"></span>
+                            AUDIO ONLY (SKIP VIDEO)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- FIGHT Button -->
+                <button type="button" id="fight-btn" class="fight-button">
+                    <span class="fight-text" data-text="FIGHT!">FIGHT!</span>
+                    <div class="fight-sparks"></div>
+                </button>
+            </section>
+
+            <!-- Fighter B Panel (Right/Player 2) -->
+            <section class="fighter-panel player-2" id="fighter-b-panel">
+                <div class="player-tag">
+                    <span class="player-num">2P</span>
+                    <div class="health-bar">
+                        <div class="health-fill" id="health-b"></div>
+                        <div class="health-segments"></div>
+                    </div>
+                </div>
+
+                <div class="fighter-card">
+                    <div class="portrait-frame">
+                        <div class="portrait-border"></div>
+                        <div class="portrait" id="portrait-b">
+                            <div class="portrait-placeholder">
+                                <span class="question-mark">?</span>
+                            </div>
+                            <img id="portrait-img-b" src="" alt="Fighter B" style="display: none;">
+                        </div>
+                        <div class="portrait-scanline"></div>
+                    </div>
+                    <div class="fighter-name-plate">
+                        <input type="text" id="name-b" class="fighter-name-input" placeholder="FIGHTER NAME" maxlength="20">
+                    </div>
+                </div>
+
+                <div class="fighter-config">
+                    <div class="config-group">
+                        <label class="pixel-label">PORTRAIT</label>
+                        <div class="input-row">
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="image-b" accept="image/*" class="file-input">
+                                <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-b').click()">
+                                    <span class="btn-icon">+</span> FILE
+                                </button>
+                            </div>
+                            <button type="button" class="pixel-btn camera-btn" id="camera-btn-b" onclick="openCamera('B')">
+                                <span class="btn-icon">CAM</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-label">VISUAL STYLE</label>
+                        <textarea id="desc-b" class="pixel-textarea" rows="2" placeholder="confident rapper in urban fashion, braids..."></textarea>
+                    </div>
+
+                    <div class="config-group">
+                        <div class="style-voice-row">
+                            <div class="style-col">
+                                <label class="pixel-label">RAP STYLE</label>
+                                <div class="pixel-dropdown" id="dropdown-style-b" data-value="West Coast (Kendrick)">
+                                    <div class="pixel-dropdown-selected">
+                                        <span class="pixel-dropdown-text">WEST COAST (KENDRICK)</span>
+                                        <span class="pixel-dropdown-arrow">▼</span>
+                                    </div>
+                                    <div class="pixel-dropdown-options">
+                                        <div class="pixel-dropdown-option" data-value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</div>
+                                        <div class="pixel-dropdown-option" data-value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</div>
+                                        <div class="pixel-dropdown-option" data-value="Toronto Rap (Drake)">TORONTO (DRAKE)</div>
+                                        <div class="pixel-dropdown-option selected" data-value="West Coast (Kendrick)">WEST COAST (KENDRICK)</div>
+                                    </div>
+                                </div>
+                                <select id="style-b" class="pixel-select compact" style="display:none;">
+                                    <option value="West Coast (Kendrick)">WEST COAST (KENDRICK)</option>
+                                    <option value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</option>
+                                    <option value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</option>
+                                    <option value="Toronto Rap (Drake)">TORONTO (DRAKE)</option>
+                                </select>
+                            </div>
+                            <div class="voice-col">
+                                <label class="pixel-label">VOICE (CLONE)</label>
+                                <div class="input-row">
+                                    <button type="button" class="pixel-btn upload-btn compact" onclick="document.getElementById('voice-b').click()">
+                                        <span class="btn-icon">+</span>
+                                    </button>
+                                    <input type="file" id="voice-b" accept="audio/*" class="hidden-input">
+                                    <div class="voice-status" id="voice-status-b">No voice</div>
+                                    <button type="button" class="pixel-btn mic-btn" id="mic-btn-b" onclick="toggleRecording('B')">
+                                        REC
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-label">RAP LYRICS</label>
+                        <textarea id="lyrics-b" class="pixel-textarea lyrics" rows="6" placeholder="Hold up, let me take the stage..."></textarea>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Credits -->
+        <footer class="arcade-footer">
+            <div class="credits">
+                <span class="credit-text">POWERED BY GROK AI</span>
+                <span class="separator">|</span>
+                <span class="credit-text">XAI HACKATHON 2025</span>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Battle Progress Modal -->
+    <div id="progress-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content battle-progress">
+            <div class="modal-frame">
+                <h2 class="modal-title glitch-text" data-text="BATTLE IN PROGRESS">BATTLE IN PROGRESS</h2>
+
+                <div class="round-indicator">
+                    <span class="round-text">ROUND</span>
+                    <span class="round-number" id="current-stage">1</span>
+                </div>
+
+                <div class="progress-stages">
+                    <div class="stage" data-stage="parsing" id="stage-parsing">
+                        <span class="stage-icon">01</span>
+                        <span class="stage-label">PARSING</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="voice_a" id="stage-voice_a">
+                        <span class="stage-icon">02</span>
+                        <span class="stage-label">VOICE 1</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="voice_b" id="stage-voice_b">
+                        <span class="stage-icon">03</span>
+                        <span class="stage-label">VOICE 2</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="bpm_detect" id="stage-bpm_detect">
+                        <span class="stage-icon">04</span>
+                        <span class="stage-label">BPM</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="beat_gen" id="stage-beat_gen">
+                        <span class="stage-icon">05</span>
+                        <span class="stage-label">BEAT</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="mixing" id="stage-mixing">
+                        <span class="stage-icon">06</span>
+                        <span class="stage-label">MIX</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="storyboard" id="stage-storyboard">
+                        <span class="stage-icon">07</span>
+                        <span class="stage-label">IMAGES</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="video" id="stage-video">
+                        <span class="stage-icon">08</span>
+                        <span class="stage-label">VIDEO</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="lipsync" id="stage-lipsync">
+                        <span class="stage-icon">09</span>
+                        <span class="stage-label">LIPSYNC</span>
+                        <span class="stage-status"></span>
+                    </div>
+                    <div class="stage" data-stage="compose" id="stage-compose">
+                        <span class="stage-icon">10</span>
+                        <span class="stage-label">COMPOSE</span>
+                        <span class="stage-status"></span>
+                    </div>
+                </div>
+
+                <div class="pixel-progress-bar">
+                    <div class="progress-track">
+                        <div class="progress-fill" id="progress-fill"></div>
+                        <div class="progress-segments"></div>
+                    </div>
+                    <div class="progress-percent" id="progress-percent">0%</div>
+                </div>
+
+                <div class="status-display">
+                    <span class="status-label">STATUS:</span>
+                    <span class="status-text" id="status-text">INITIALIZING...</span>
+                    <span class="cursor-blink">_</span>
+                </div>
+
+                <div class="loading-animation">
+                    <div class="loading-bar">
+                        <div class="loading-segment"></div>
+                        <div class="loading-segment"></div>
+                        <div class="loading-segment"></div>
+                        <div class="loading-segment"></div>
+                        <div class="loading-segment"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content battle-result">
+            <div class="modal-frame">
+                <div class="victory-banner">
+                    <h2 class="victory-title rainbow-text" data-text="BATTLE COMPLETE!">BATTLE COMPLETE!</h2>
+                    <div class="victory-stars">
+                        <span class="star">*</span>
+                        <span class="star">*</span>
+                        <span class="star">*</span>
+                    </div>
+                </div>
+
+                <div class="video-container">
+                    <div class="video-frame">
+                        <video id="result-video" controls></video>
+                    </div>
+                    <div class="detected-bpm-display">
+                        <span class="bpm-label">DETECTED BPM:</span>
+                        <span class="bpm-value-display" id="detected-bpm-display">--</span>
+                    </div>
+                </div>
+
+                <div class="result-actions">
+                    <a id="download-btn" class="pixel-btn download-btn" href="#" download>
+                        <span class="btn-icon">SAVE</span> DOWNLOAD
+                    </a>
+                    <button type="button" id="new-battle-btn" class="pixel-btn new-battle-btn">
+                        <span class="btn-icon">NEW</span> REMATCH
+                    </button>
+                </div>
+
+                <div class="high-score">
+                    <span class="score-label">YOUR SCORE:</span>
+                    <span class="score-value" id="score-value">999999</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content battle-error">
+            <div class="modal-frame error-frame">
+                <h2 class="error-title">GAME OVER</h2>
+                <div class="error-icon">X</div>
+                <p class="error-message" id="error-message">An error occurred</p>
+                <button type="button" id="error-close-btn" class="pixel-btn">CONTINUE?</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Camera Modal -->
+    <div id="camera-modal" class="modal">
+        <div class="modal-backdrop" onclick="closeCamera()"></div>
+        <div class="modal-content camera-capture">
+            <div class="modal-frame">
+                <h2 class="modal-title">CAPTURE PORTRAIT</h2>
+                <div class="camera-container">
+                    <video id="camera-video" autoplay playsinline></video>
+                    <canvas id="camera-canvas" style="display: none;"></canvas>
+                    <div class="camera-overlay">
+                        <div class="camera-frame"></div>
+                    </div>
+                </div>
+                <div class="camera-actions">
+                    <button type="button" class="pixel-btn capture-btn" id="capture-btn" onclick="capturePhoto()">
+                        <span class="btn-icon">SNAP</span>
+                    </button>
+                    <button type="button" class="pixel-btn cancel-btn" onclick="closeCamera()">
+                        CANCEL
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice Recording Modal -->
+    <div id="voice-modal" class="modal">
+        <div class="modal-backdrop" onclick="closeVoiceRecording()"></div>
+        <div class="modal-content voice-recording">
+            <div class="modal-frame">
+                <h2 class="modal-title">CLONE YOUR VOICE</h2>
+                <p class="voice-instructions">Read each sentence clearly and naturally. This helps clone your unique voice!</p>
+
+                <div class="voice-prompt-container">
+                    <div class="prompt-number">
+                        <span id="prompt-current">1</span> / <span id="prompt-total">5</span>
+                    </div>
+                    <div class="voice-prompt" id="voice-prompt">
+                        "The quick brown fox jumps over the lazy dog."
+                    </div>
+                </div>
+
+                <div class="voice-visualizer" id="voice-visualizer">
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                    <div class="viz-bar"></div>
+                </div>
+
+                <div class="recording-timer" id="recording-timer">00:00</div>
+
+                <div class="voice-actions">
+                    <button type="button" class="pixel-btn record-btn" id="voice-record-btn" onclick="toggleVoiceRecording()">
+                        <span class="rec-icon"></span> START RECORDING
+                    </button>
+                    <button type="button" class="pixel-btn next-btn" id="voice-next-btn" onclick="nextVoicePrompt()" disabled>
+                        NEXT PROMPT
+                    </button>
+                </div>
+
+                <div class="voice-progress">
+                    <div class="voice-progress-bar" id="voice-progress-bar"></div>
+                </div>
+
+                <div class="voice-footer">
+                    <button type="button" class="pixel-btn done-btn" id="voice-done-btn" onclick="finishVoiceRecording()" disabled>
+                        DONE - USE THIS VOICE
+                    </button>
+                    <button type="button" class="pixel-btn cancel-btn" onclick="closeVoiceRecording()">
+                        CANCEL
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

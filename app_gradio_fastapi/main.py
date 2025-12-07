@@ -1,10 +1,21 @@
-import gradio as gr
-from fastapi import FastAPI
+"""
+Grok DJ Rap Battle - FastAPI Application
+
+8-bit Street Fighter themed rap battle video generator using xAI APIs.
+"""
+
 from functools import partial
+from pathlib import Path
+
+import gradio as gr
+from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 
 from app_gradio_fastapi import routes
-from app_gradio_fastapi.helpers.formatters import request_formatter
 from app_gradio_fastapi.helpers.session_logger import change_logging
+from app_gradio_fastapi.helpers.formatters import request_formatter
 from app_gradio_fastapi.services.voice_api import generate_rap_voice
 from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
 from app_gradio_fastapi.services.beat_api import generate_beat_pattern
@@ -20,15 +31,53 @@ from app_gradio_fastapi.config.style_presets import (
 
 
 
+
+# Initialize logging
 change_logging()
 
-CUSTOM_GRADIO_PATH = "/"
-app = FastAPI(title="Grok DJ Rap Battle", version="1.0")
+# Get paths
+APP_DIR = Path(__file__).parent
+PROJECT_ROOT = APP_DIR.parent
+STATIC_DIR = APP_DIR / "static"
+TEMPLATES_DIR = APP_DIR / "templates"
+OUTPUTS_DIR = PROJECT_ROOT / "outputs"
+CUSTOM_GRADIO_PATH = "/gradio"
+
+# Ensure outputs directory exists
+OUTPUTS_DIR.mkdir(exist_ok=True)
+
+# Create FastAPI app
+app = FastAPI(
+    title="Grok DJ Rap Battle",
+    description="8-bit Street Fighter themed AI rap battle video generator",
+    version="2.0"
+)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+# Mount outputs directory for serving generated videos
+app.mount("/outputs", StaticFiles(directory=str(OUTPUTS_DIR)), name="outputs")
+
+# Setup Jinja2 templates
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Include API routes
 app.include_router(routes.router)
 
 
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):
+    """Serve the main battle arena page."""
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+# Keep the old Gradio handlers for potential API reuse
+# These can be imported and used by the battle manager
+
 def handle_rap_generation(lyrics: str, style: str, voice_file: str | None):
-    """Handle rap voice generation from Gradio UI."""
+    """Handle rap voice generation."""
+    from app_gradio_fastapi.services.voice_api import generate_rap_voice
     audio_path, status = generate_rap_voice(
         lyrics=lyrics,
         style_instructions=style if style.strip() else "aggressive hip-hop rapper with rhythmic flow",
@@ -312,13 +361,14 @@ def handle_generate_all_audio(
 
 
 def handle_beat_generation(style: str, bpm: int, bars: int, loops: int):
-    """Handle beat generation from Gradio UI."""
-    # Step 1: Get beat pattern JSON from Grok
+    """Handle beat generation."""
+    from app_gradio_fastapi.services.beat_api import generate_beat_pattern
+    from app_gradio_fastapi.services.beat_generator import get_generator
+
     json_str, status = generate_beat_pattern(style=style, bpm=bpm, bars=bars)
     if json_str is None:
         return None, None, status
 
-    # Step 2: Synthesize audio from the pattern
     try:
         generator = get_generator()
         audio_path, pattern = generator.generate_from_json(json_str, loops=loops)
@@ -921,4 +971,5 @@ The battle ends, the crowd roars, who will claim the throne?""",
             text_output = gr.Textbox(lines=1, placeholder=None, label="Text Output")
             text_input.submit(fn=request_formatter, inputs=[text_input], outputs=[text_output])
 
+# Mount Gradio at /gradio path
 app = gr.mount_gradio_app(app, demo, path=CUSTOM_GRADIO_PATH)

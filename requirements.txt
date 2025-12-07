@@ -7,3 +7,6 @@ uvicorn
 pydub
 runwayml
 moviepy
+jinja2
+python-multipart
+librosa
