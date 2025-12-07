@@ -18,7 +18,7 @@ python -m pip install pip --upgrade
 python -m pip install -r requirements.txt
 
 # Run (port 7860)
-uvicorn app_gradio_fastapi.main:app --host 0.0.0.0 --port 7860 --reload
+uvicorn app_gradio_fastapi.main:app --host 127.0.0.1 --port 7860 --reload
 ```
 
 **Troubleshooting:** If uvicorn isn't found, ensure `venv/bin` is in `$PATH` or use `./venv/bin/uvicorn`.

@@ -99,20 +99,22 @@ async def generate_lyrics(
 
 @router.post("/api/battle/start")
 async def start_battle(
-    theme: Annotated[str, Form()],
-    beat_style: Annotated[str, Form()],
-    test_mode: Annotated[bool, Form()],
-    audio_only: Annotated[bool, Form()],
     fighter_a_name: Annotated[str, Form()],
+    fighter_b_name: Annotated[str, Form()],
+    video_style: Annotated[str, Form()] = "Photorealistic",
+    location: Annotated[str, Form()] = "underground hip-hop club",
+    beat_style: Annotated[str, Form()] = "trap",
+    test_mode: Annotated[bool, Form()] = True,
+    audio_only: Annotated[bool, Form()] = True,
     fighter_a_description: Annotated[str, Form()] = "",
     fighter_a_style: Annotated[str, Form()] = "UK Grime 1 (Stormzy)",
     fighter_a_lyrics: Annotated[str, Form()] = "",
     fighter_a_twitter: Annotated[str, Form()] = "",
-    fighter_b_name: Annotated[str, Form()] = "",
     fighter_b_description: Annotated[str, Form()] = "",
     fighter_b_style: Annotated[str, Form()] = "West Coast (Kendrick)",
     fighter_b_lyrics: Annotated[str, Form()] = "",
     fighter_b_twitter: Annotated[str, Form()] = "",
+    time_period: Annotated[str, Form()] = "present day",
     fighter_a_image: Annotated[UploadFile | None, File()] = None,
     fighter_a_voice: Annotated[UploadFile | None, File()] = None,
     fighter_b_image: Annotated[UploadFile | None, File()] = None,
@@ -140,7 +142,9 @@ async def start_battle(
 
         # Create battle config (BPM is auto-detected from rap audio)
         config = BattleConfig(
-            theme=theme,
+            video_style=video_style,
+            location=location,
+            time_period=time_period,
             beat_style=beat_style,
             test_mode=test_mode,
             audio_only=audio_only,

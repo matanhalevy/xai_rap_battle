@@ -475,7 +475,14 @@ async function startBattle() {
 
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.detail || 'Failed to start battle');
+            // Handle FastAPI validation errors (detail can be string or array)
+            let errorMsg = 'Failed to start battle';
+            if (typeof error.detail === 'string') {
+                errorMsg = error.detail;
+            } else if (Array.isArray(error.detail)) {
+                errorMsg = error.detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
+            }
+            throw new Error(errorMsg);
         }
 
         const data = await response.json();
@@ -499,12 +506,7 @@ function validateBattleInputs() {
     if (!state.fighterB.name.trim()) {
         return { valid: false, message: 'PLAYER 2 NEEDS A NAME!' };
     }
-    if (!state.fighterA.lyrics.trim()) {
-        return { valid: false, message: 'PLAYER 1 NEEDS LYRICS!' };
-    }
-    if (!state.fighterB.lyrics.trim()) {
-        return { valid: false, message: 'PLAYER 2 NEEDS LYRICS!' };
-    }
+    // Lyrics are optional - auto-generated if empty
     if (!state.battle.location.trim()) {
         return { valid: false, message: 'SET A LOCATION!' };
     }
@@ -515,7 +517,7 @@ async function generateLyrics() {
     const formData = new FormData();
     formData.append('fighter_a_name', state.fighterA.name);
     formData.append('fighter_b_name', state.fighterB.name);
-    formData.append('theme', state.battle.theme);
+    formData.append('theme', state.battle.location);  // Use location as theme for lyrics
     formData.append('fighter_a_twitter', state.fighterA.twitter);
     formData.append('fighter_b_twitter', state.fighterB.twitter);
     formData.append('fighter_a_description', state.fighterA.description);
@@ -532,7 +534,13 @@ async function generateLyrics() {
 
     if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || 'Failed to generate lyrics');
+        let errorMsg = 'Failed to generate lyrics';
+        if (typeof error.detail === 'string') {
+            errorMsg = error.detail;
+        } else if (Array.isArray(error.detail)) {
+            errorMsg = error.detail.map(e => e.msg || e.message || JSON.stringify(e)).join(', ');
+        }
+        throw new Error(errorMsg);
     }
 
     return await response.json();

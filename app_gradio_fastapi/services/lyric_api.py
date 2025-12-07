@@ -38,16 +38,17 @@ VERSE NUMBER: {verse_number} of 4
 INSTRUCTIONS:
 1. Write a VERY SHORT verse (2-3 bars MAX, ~8 seconds when rapped) for {rapper_name}
 2. EVERY LINE MUST RHYME - use end rhymes, internal rhymes, and multisyllabic rhyme schemes
-3. The flow and cadence MUST match the {rap_style} style - study how artists in this style rap
+3. The flow and cadence MUST match the {rap_style} style
 4. Focus on dissing {opponent_name} and the BATTLE TOPIC
 5. {verse_specific_instruction}
 6. Make it FLOW smoothly - each bar should connect rhythmically to the next
 7. Use character NAMES in lyrics, NEVER use Twitter handles or @ symbols
+8. NO AD-LIBS - do NOT include (yeah), (what), (uh), (skrt), or any parenthetical sounds. Pure bars only.
 
 RAP STYLE GUIDANCE FOR {rap_style}:
 {style_guidance}
 
-OUTPUT FORMAT: Return ONLY the verse lyrics, one bar per line. No explanations, no labels, just the raw bars.'''
+OUTPUT FORMAT: Return ONLY the verse lyrics, one bar per line. No ad-libs, no explanations, no labels, just clean bars.'''
 
 
 RAP_STYLE_GUIDANCE = {
@@ -56,7 +57,7 @@ RAP_STYLE_GUIDANCE = {
     "NY Rap (A$AP Rocky)": "Smooth, laid-back but hard-hitting. Triplet flows, melodic elements. Harlem swag. Think Rocky's 'Peso' flow.",
     "Toronto Rap (Drake)": "Melodic, emotional, braggadocious. Singing mixed with rapping. Introspective flex. Think Drake's 'Back to Back' diss flow.",
     "West Coast (Kendrick)": "Complex rhyme schemes, storytelling, rapid switches. Compton energy. Think Kendrick's 'DNA' or 'Humble' flow.",
-    "Atlanta Trap (Future)": "Melodic, auto-tune influenced, bouncy. Ad-libs between bars. Think Future's mumble-flow energy.",
+    "Atlanta Trap (Future)": "Melodic, bouncy flow. Smooth delivery with attitude. Think Future's confident energy.",
     "Chicago Drill (Chief Keef)": "Dark, menacing, sliding 808s. Short punchy phrases. Aggressive and raw. Think Chief Keef's 'Love Sosa' energy.",
 }
 
@@ -104,10 +105,10 @@ def _get_beat_flow_guidance(style: str | None, bpm: int | None) -> str:
         return ""
 
     guidance = {
-        "trap": f"Rolling hi-hats at {bpm} BPM. Use triplet flows, ad-libs (yeah, what, uh). Leave room for 808 drops.",
+        "trap": f"Rolling hi-hats at {bpm} BPM. Triplet flows, hard-hitting bars. Punchy delivery.",
         "boom bap": f"Classic {bpm} BPM groove. Head-nodding pocket flow, emphasize beats 2 and 4. Old school cadence.",
         "west coast": f"Bouncy g-funk at {bpm} BPM. Smooth, laid-back delivery. Syncopated, melodic phrases.",
-        "drill": f"Aggressive {bpm} BPM. Sliding 808s, menacing tone. Triplet patterns, staccato delivery.",
+        "drill": f"Aggressive {bpm} BPM. Sliding 808s, menacing tone. Staccato delivery, raw energy.",
     }
     flow_text = guidance.get(style.lower(), f"Rap at {bpm} BPM tempo.")
     return f"\nBEAT: {style} at {bpm} BPM\nFLOW GUIDANCE: {flow_text}"

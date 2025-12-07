@@ -26,7 +26,7 @@ python -m pip install -r requirements.txt
 # check that env $PATH contains the current virtualenv `venv/bin` folder
 # also try using a relative path, e.g. `./venv/bin/uvicorn` or reinstalling the virtualenv
 # fastapi==0.110.0, uvicorn==0.27.1
-uvicorn app_gradio_fastapi.main:app --host 0.0.0.0 --port 7860 --reload
+uvicorn app_gradio_fastapi.main:app --host 127.0.0.1 --port 7860 --reload
 ```
 
 ## Run the app within a docker container

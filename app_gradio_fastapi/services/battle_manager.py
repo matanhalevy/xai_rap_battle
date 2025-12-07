@@ -42,7 +42,8 @@ class BattleStage(str, Enum):
 @dataclass
 class BattleConfig:
     """Configuration for a rap battle."""
-    theme: str
+    video_style: str
+    location: str
     beat_style: str
     test_mode: bool
     audio_only: bool
@@ -60,6 +61,7 @@ class BattleConfig:
     fighter_b_lyrics: str
 
     # Optional fields (must come after required)
+    time_period: str = "present day"
     fighter_a_image_path: str | None = None
     fighter_a_voice_path: str | None = None
     fighter_b_image_path: str | None = None
