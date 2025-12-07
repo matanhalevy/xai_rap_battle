@@ -9,10 +9,12 @@ from app_gradio_fastapi.services.voice_api import generate_rap_voice
 from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
 from app_gradio_fastapi.services.beat_api import generate_beat_pattern
 from app_gradio_fastapi.services.beat_generator import get_generator
+from app_gradio_fastapi.services.lyric_api import generate_all_verses
 from app_gradio_fastapi.services.storyboard_pipeline import run_storyboard_pipeline, run_storyboard_only
 from app_gradio_fastapi.config.style_presets import (
     get_dropdown_choices,
     get_preset_path,
+    get_style_instructions,
     CUSTOM_UPLOAD_LABEL,
 )
 
@@ -55,6 +57,13 @@ def resolve_style_source(dropdown_value: str, custom_file) -> str | None:
 def update_custom_visibility(selection: str):
     """Show custom upload only when 'Custom Upload...' is selected."""
     return gr.update(visible=(selection == CUSTOM_UPLOAD_LABEL))
+
+
+def update_style_dropdown(selection: str):
+    """Update custom visibility and auto-populate style instructions."""
+    visibility = gr.update(visible=(selection == CUSTOM_UPLOAD_LABEL))
+    instructions = get_style_instructions(selection)
+    return visibility, instructions
 
 
 def handle_create_style_reference(
@@ -123,6 +132,183 @@ def handle_generate_with_style(character: str, lyrics: str, style_instructions: 
 # Create partial handlers for each character
 handle_generate_char1 = partial(handle_generate_with_style, "char1")
 handle_generate_char2 = partial(handle_generate_with_style, "char2")
+
+
+# Store generated verses for audio generation
+_verses_cache = {
+    "verse1": "",
+    "verse2": "",
+    "verse3": "",
+    "verse4": "",
+}
+
+# Store generated audio paths for combining
+_audio_cache = {
+    "verse1": None,
+    "verse2": None,
+    "verse3": None,
+    "verse4": None,
+}
+
+
+def handle_generate_all_lyrics(
+    char1_name: str,
+    char1_twitter: str,
+    char2_name: str,
+    char2_twitter: str,
+    theme: str,
+    scene: str,
+):
+    """Generate all 4 verses using Grok AI."""
+    if not char1_name.strip():
+        return "", "", "", "", "Error: Please enter Character 1's name"
+    if not char2_name.strip():
+        return "", "", "", "", "Error: Please enter Character 2's name"
+    if not theme.strip():
+        return "", "", "", "", "Error: Please enter a battle theme"
+
+    verses, status = generate_all_verses(
+        char1_name=char1_name.strip(),
+        char1_twitter=char1_twitter.strip() if char1_twitter else None,
+        char2_name=char2_name.strip(),
+        char2_twitter=char2_twitter.strip() if char2_twitter else None,
+        topic=theme.strip(),
+        description="",
+        scene_description=scene.strip() if scene else "",
+    )
+
+    # Pad verses if fewer than 4 were generated
+    while len(verses) < 4:
+        verses.append("")
+
+    # Cache verses for audio generation
+    for i, verse in enumerate(verses[:4], 1):
+        _verses_cache[f"verse{i}"] = verse
+
+    return verses[0], verses[1], verses[2], verses[3], status
+
+
+def handle_generate_all_audio(
+    custom_verse1: str,
+    custom_verse2: str,
+    custom_verse3: str,
+    custom_verse4: str,
+    grok_verse1: str,
+    grok_verse2: str,
+    grok_verse3: str,
+    grok_verse4: str,
+    char1_style: str,
+    char2_style: str,
+):
+    """Generate audio for all 4 verses and combine them using ffmpeg."""
+    import subprocess
+    import tempfile
+    import os
+
+    custom_verses = [custom_verse1, custom_verse2, custom_verse3, custom_verse4]
+    grok_verses = [grok_verse1, grok_verse2, grok_verse3, grok_verse4]
+    styles = [char1_style, char2_style, char1_style, char2_style]
+    characters = ["char1", "char2", "char1", "char2"]
+
+    audio_paths = []
+    errors = []
+
+    # Generate each verse
+    for i in range(4):
+        verse_num = i + 1
+        custom = custom_verses[i]
+        grok = grok_verses[i]
+        style = styles[i]
+        character = characters[i]
+
+        # Use custom verse if provided, otherwise use Grok-generated
+        lyrics = custom.strip() if custom.strip() else grok.strip()
+
+        if not lyrics:
+            errors.append(f"Verse {verse_num}: No lyrics")
+            audio_paths.append(None)
+            continue
+
+        ref_path = _style_reference_cache[character]["path"]
+        if not ref_path:
+            errors.append(f"Verse {verse_num}: No voice reference for {character}")
+            audio_paths.append(None)
+            continue
+
+        audio_path, status = generate_rap_voice(
+            lyrics=lyrics,
+            style_instructions=style if style.strip() else "aggressive rapper with rhythmic flow",
+            voice_file=ref_path,
+        )
+
+        if audio_path:
+            _audio_cache[f"verse{verse_num}"] = audio_path
+            audio_paths.append(audio_path)
+        else:
+            errors.append(f"Verse {verse_num}: {status}")
+            audio_paths.append(None)
+
+    # Check if we have all audio files
+    if None in audio_paths:
+        error_msg = "; ".join(errors) if errors else "Some verses failed to generate"
+        return (
+            audio_paths[0],
+            audio_paths[1],
+            audio_paths[2],
+            audio_paths[3],
+            None,
+            f"Partial generation: {error_msg}",
+        )
+
+    # Combine all audio files using ffmpeg
+    try:
+        # Create a temporary file list for ffmpeg concat
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            list_file = f.name
+            for path in audio_paths:
+                f.write(f"file '{path}'\n")
+
+        # Output combined file
+        combined_path = tempfile.mktemp(suffix=".mp3")
+
+        # Use ffmpeg to concatenate
+        cmd = [
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0",
+            "-i", list_file, "-c", "copy", combined_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+
+        # Clean up list file
+        os.unlink(list_file)
+
+        if result.returncode != 0:
+            return (
+                audio_paths[0],
+                audio_paths[1],
+                audio_paths[2],
+                audio_paths[3],
+                None,
+                f"FFmpeg error: {result.stderr}",
+            )
+
+        return (
+            audio_paths[0],
+            audio_paths[1],
+            audio_paths[2],
+            audio_paths[3],
+            combined_path,
+            "All audio generated successfully!",
+        )
+
+    except Exception as e:
+        return (
+            audio_paths[0],
+            audio_paths[1],
+            audio_paths[2],
+            audio_paths[3],
+            None,
+            f"Error combining: {e}",
+        )
 
 
 def handle_beat_generation(style: str, bpm: int, bars: int, loops: int):
@@ -245,16 +431,38 @@ with gr.Blocks(title="Grok DJ Rap Battle") as demo:
                 outputs=[audio_output, status_output],
             )
 
-        with gr.TabItem("Style Transfer"):
-            gr.Markdown("""## Rap Battle Style Transfer
-Configure two characters for your rap battle. Each character has a unique voice identity and delivery style.
+        with gr.TabItem("Rap Battle Audio"):
+            gr.Markdown("""## Rap Battle Audio
+Configure your rap battle characters and generate verses with audio.
             """)
+
+            gr.Markdown("### Battle Setup")
+            with gr.Row():
+                battle_theme = gr.Textbox(
+                    label="Battle Theme",
+                    placeholder="e.g., Tech CEOs, AI vs Humans, East Coast vs West Coast",
+                )
+            with gr.Row():
+                scene_description = gr.Textbox(
+                    label="Scene Description",
+                    lines=2,
+                    placeholder="Describe the setting (used for lyrics context and future video generation)...",
+                )
+            gr.Markdown("---")
 
             gr.Markdown("### Stage 1: Create Voice + Style References")
             with gr.Row():
                 # Character 1
                 with gr.Column():
                     gr.Markdown("#### Character 1")
+                    char1_name = gr.Textbox(
+                        label="Character Name",
+                        placeholder="e.g., Elon Musk",
+                    )
+                    char1_twitter = gr.Textbox(
+                        label="Twitter Handle (optional)",
+                        placeholder="e.g., @elonmusk",
+                    )
                     char1_voice_identity = gr.File(
                         label="Voice Identity (who to sound like)",
                         file_types=[".mp3", ".m4a", ".wav"],
@@ -297,6 +505,14 @@ Configure two characters for your rap battle. Each character has a unique voice 
                 # Character 2
                 with gr.Column():
                     gr.Markdown("#### Character 2")
+                    char2_name = gr.Textbox(
+                        label="Character Name",
+                        placeholder="e.g., Mark Zuckerberg",
+                    )
+                    char2_twitter = gr.Textbox(
+                        label="Twitter Handle (optional)",
+                        placeholder="e.g., @zaborevsky",
+                    )
                     char2_voice_identity = gr.File(
                         label="Voice Identity (who to sound like)",
                         file_types=[".mp3", ".m4a", ".wav"],
@@ -336,18 +552,6 @@ Configure two characters for your rap battle. Each character has a unique voice 
                     char2_ref_audio = gr.Audio(label="Reference Output", type="filepath")
                     char2_ref_status = gr.Textbox(label="Status", interactive=False)
 
-            # Dropdown visibility toggles
-            char1_style_dropdown.change(
-                fn=update_custom_visibility,
-                inputs=[char1_style_dropdown],
-                outputs=[char1_custom_style],
-            )
-            char2_style_dropdown.change(
-                fn=update_custom_visibility,
-                inputs=[char2_style_dropdown],
-                outputs=[char2_custom_style],
-            )
-
             # Stage 1 buttons
             char1_create_btn.click(
                 fn=handle_create_ref_char1,
@@ -377,54 +581,177 @@ Configure two characters for your rap battle. Each character has a unique voice 
             )
 
             gr.Markdown("---")
-            gr.Markdown("### Stage 2: Generate Lyrics")
+            gr.Markdown("### Stage 2: Generate Lyrics & Audio")
+
+            # Style instructions for both characters (shared across tabs)
             with gr.Row():
-                # Character 1 Lyrics
                 with gr.Column():
-                    gr.Markdown("#### Character 1")
-                    char1_lyrics = gr.Textbox(
-                        lines=8,
-                        placeholder="Enter rap lyrics for Character 1...\n\nExample:\nYo, I'm the first one on the mic,\nSpitting fire bars that you'll like,\nMy flow is cold, my rhymes are tight,\nStep to me? You'll lose the fight!",
-                        label="Rap Lyrics",
-                    )
                     char1_style_instructions = gr.Textbox(
                         lines=2,
                         placeholder="e.g., aggressive rapper with rhythmic flow",
-                        label="Style Instructions",
-                        value="aggressive rapper with rhythmic flow",
+                        label="Character 1 Style Instructions",
+                        value="",
                     )
-                    char1_generate_btn = gr.Button("Generate Rap 1", variant="primary")
-                    char1_audio_output = gr.Audio(label="Generated Audio", type="filepath")
-                    char1_gen_status = gr.Textbox(label="Status", interactive=False)
-
-                # Character 2 Lyrics
                 with gr.Column():
-                    gr.Markdown("#### Character 2")
-                    char2_lyrics = gr.Textbox(
-                        lines=8,
-                        placeholder="Enter rap lyrics for Character 2...\n\nExample:\nHold up, let me take the stage,\nI'm about to turn the page,\nMy verses hit with so much rage,\nI'm the champion of this age!",
-                        label="Rap Lyrics",
-                    )
                     char2_style_instructions = gr.Textbox(
                         lines=2,
-                        placeholder="e.g., aggressive rapper with rhythmic flow",
-                        label="Style Instructions",
-                        value="aggressive rapper with rhythmic flow",
+                        placeholder="e.g., confident rapper with smooth delivery",
+                        label="Character 2 Style Instructions",
+                        value="",
                     )
-                    char2_generate_btn = gr.Button("Generate Rap 2", variant="primary")
-                    char2_audio_output = gr.Audio(label="Generated Audio", type="filepath")
-                    char2_gen_status = gr.Textbox(label="Status", interactive=False)
 
-            # Stage 2 buttons
-            char1_generate_btn.click(
-                fn=handle_generate_char1,
-                inputs=[char1_lyrics, char1_style_instructions],
-                outputs=[char1_audio_output, char1_gen_status],
+            with gr.Tabs():
+                with gr.TabItem("Grok Generated"):
+                    gr.Markdown("Generate all 4 verses automatically using Grok AI.")
+                    with gr.Row():
+                        generate_lyrics_btn = gr.Button(
+                            "Generate All Lyrics",
+                            variant="primary",
+                            scale=2,
+                        )
+                        lyrics_status = gr.Textbox(
+                            label="Generation Status",
+                            interactive=False,
+                            scale=3,
+                        )
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("##### Verse 1 (Character 1)")
+                            grok_verse1 = gr.Textbox(
+                                lines=6,
+                                label="Generated Verse 1",
+                                interactive=False,
+                            )
+                        with gr.Column():
+                            gr.Markdown("##### Verse 2 (Character 2)")
+                            grok_verse2 = gr.Textbox(
+                                lines=6,
+                                label="Generated Verse 2",
+                                interactive=False,
+                            )
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("##### Verse 3 (Character 1)")
+                            grok_verse3 = gr.Textbox(
+                                lines=6,
+                                label="Generated Verse 3",
+                                interactive=False,
+                            )
+                        with gr.Column():
+                            gr.Markdown("##### Verse 4 (Character 2)")
+                            grok_verse4 = gr.Textbox(
+                                lines=6,
+                                label="Generated Verse 4",
+                                interactive=False,
+                            )
+
+                with gr.TabItem("Custom Lyrics"):
+                    gr.Markdown("Enter your own lyrics for each verse.")
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("##### Verse 1 (Character 1)")
+                            custom_verse1 = gr.Textbox(
+                                lines=6,
+                                placeholder="Enter opening verse for Character 1...",
+                                label="Verse 1",
+                            )
+                        with gr.Column():
+                            gr.Markdown("##### Verse 2 (Character 2)")
+                            custom_verse2 = gr.Textbox(
+                                lines=6,
+                                placeholder="Enter response verse for Character 2...",
+                                label="Verse 2",
+                            )
+                    with gr.Row():
+                        with gr.Column():
+                            gr.Markdown("##### Verse 3 (Character 1)")
+                            custom_verse3 = gr.Textbox(
+                                lines=6,
+                                placeholder="Enter comeback verse for Character 1...",
+                                label="Verse 3",
+                            )
+                        with gr.Column():
+                            gr.Markdown("##### Verse 4 (Character 2)")
+                            custom_verse4 = gr.Textbox(
+                                lines=6,
+                                placeholder="Enter closing verse for Character 2...",
+                                label="Verse 4",
+                            )
+
+            gr.Markdown("---")
+            gr.Markdown("### Stage 3: Audio Output")
+            with gr.Row():
+                generate_all_audio_btn = gr.Button(
+                    "Generate All Audio",
+                    variant="primary",
+                    scale=2,
+                )
+                audio_status = gr.Textbox(
+                    label="Status",
+                    interactive=False,
+                    scale=3,
+                )
+
+            gr.Markdown("##### Individual Verses")
+            with gr.Row():
+                verse1_audio = gr.Audio(label="Verse 1 (Character 1)", type="filepath")
+                verse2_audio = gr.Audio(label="Verse 2 (Character 2)", type="filepath")
+            with gr.Row():
+                verse3_audio = gr.Audio(label="Verse 3 (Character 1)", type="filepath")
+                verse4_audio = gr.Audio(label="Verse 4 (Character 2)", type="filepath")
+
+            gr.Markdown("##### Combined Battle")
+            combined_audio = gr.Audio(label="Full Battle (All 4 Verses)", type="filepath")
+
+            # Dropdown change handlers (auto-populate style instructions)
+            char1_style_dropdown.change(
+                fn=update_style_dropdown,
+                inputs=[char1_style_dropdown],
+                outputs=[char1_custom_style, char1_style_instructions],
             )
-            char2_generate_btn.click(
-                fn=handle_generate_char2,
-                inputs=[char2_lyrics, char2_style_instructions],
-                outputs=[char2_audio_output, char2_gen_status],
+            char2_style_dropdown.change(
+                fn=update_style_dropdown,
+                inputs=[char2_style_dropdown],
+                outputs=[char2_custom_style, char2_style_instructions],
+            )
+
+            # Event handlers for Rap Battle Audio tab
+            generate_lyrics_btn.click(
+                fn=handle_generate_all_lyrics,
+                inputs=[
+                    char1_name,
+                    char1_twitter,
+                    char2_name,
+                    char2_twitter,
+                    battle_theme,
+                    scene_description,
+                ],
+                outputs=[grok_verse1, grok_verse2, grok_verse3, grok_verse4, lyrics_status],
+            )
+
+            # Audio generation handler (single button for all)
+            generate_all_audio_btn.click(
+                fn=handle_generate_all_audio,
+                inputs=[
+                    custom_verse1,
+                    custom_verse2,
+                    custom_verse3,
+                    custom_verse4,
+                    grok_verse1,
+                    grok_verse2,
+                    grok_verse3,
+                    grok_verse4,
+                    char1_style_instructions,
+                    char2_style_instructions,
+                ],
+                outputs=[
+                    verse1_audio,
+                    verse2_audio,
+                    verse3_audio,
+                    verse4_audio,
+                    combined_audio,
+                    audio_status,
+                ],
             )
 
         with gr.TabItem("Beat Generator"):

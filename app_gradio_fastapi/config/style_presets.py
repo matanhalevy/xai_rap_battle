@@ -9,7 +9,13 @@ STYLE_PRESETS = {
     "NY Rap (A$AP Rocky)": str(PROJECT_ROOT / "voices" / "asap_rocky_trimmed.mp3"),
     "Toronto Rap (Drake)": str(PROJECT_ROOT / "voices" / "drake_pushups_trimmed.mp3"),
     "West Coast (Kendrick)": str(PROJECT_ROOT / "voices" / "kendrick_euphoria_trimmed.mp3"),
-    # Add more presets here
+}
+
+STYLE_INSTRUCTIONS = {
+    "UK Grime 1 (Stormzy)": "aggressive grime rapper, powerful commanding delivery, hard-hitting bars with British accent, intense energy and raw emotion",
+    "NY Rap (A$AP Rocky)": "smooth wavy rapper, laid-back confident delivery, triplet flow with swagger, Harlem cool with melodic undertones",
+    "Toronto Rap (Drake)": "smooth melodic rapper, confident and relaxed delivery, slight sing-song flow, emotional range from introspective to boastful",
+    "West Coast (Kendrick)": "technical lyrical rapper, dynamic delivery with varied cadence, conscious bars with intensity, switches between smooth and aggressive",
 }
 
 CUSTOM_UPLOAD_LABEL = "Custom Upload..."
@@ -23,3 +29,8 @@ def get_dropdown_choices() -> list[str]:
 def get_preset_path(label: str) -> str | None:
     """Get file path for a preset label. Returns None for custom upload."""
     return STYLE_PRESETS.get(label)
+
+
+def get_style_instructions(label: str) -> str:
+    """Get style instructions for a preset label. Returns empty string for custom upload."""
+    return STYLE_INSTRUCTIONS.get(label, "")
