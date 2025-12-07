@@ -6,6 +6,8 @@ from app_gradio_fastapi.helpers.formatters import request_formatter
 from app_gradio_fastapi.helpers.session_logger import change_logging
 from app_gradio_fastapi.services.voice_api import generate_rap_voice
 from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
+from app_gradio_fastapi.services.beat_api import generate_beat_pattern
+from app_gradio_fastapi.services.beat_generator import get_generator
 
 
 change_logging()
@@ -86,6 +88,22 @@ def handle_generate_with_style(lyrics: str, style_reference_file, style_instruct
         voice_file=ref_path,
     )
     return audio_path, status
+
+
+def handle_beat_generation(style: str, bpm: int, bars: int, loops: int):
+    """Handle beat generation from Gradio UI."""
+    # Step 1: Get beat pattern JSON from Grok
+    json_str, status = generate_beat_pattern(style=style, bpm=bpm, bars=bars)
+    if json_str is None:
+        return None, None, status
+
+    # Step 2: Synthesize audio from the pattern
+    try:
+        generator = get_generator()
+        audio_path, pattern = generator.generate_from_json(json_str, loops=loops)
+        return audio_path, json_str, f"Generated: {pattern.metadata.title} ({pattern.metadata.bpm} BPM)"
+    except Exception as e:
+        return None, json_str, f"Synthesis error: {e}"
 
 
 with gr.Blocks(title="Grok DJ Rap Battle") as demo:
@@ -221,6 +239,40 @@ Transform one voice into another while preserving delivery style and cadence.
                 fn=handle_generate_with_style,
                 inputs=[style_lyrics_input, style_reference_upload, style_instructions_input],
                 outputs=[style_audio_output, style_status_output],
+            )
+
+        with gr.TabItem("Beat Generator"):
+            gr.Markdown("Generate beats using Grok AI. Select a style and customize tempo.")
+
+            with gr.Row():
+                with gr.Column():
+                    style_dropdown = gr.Dropdown(
+                        choices=["trap", "boom bap", "west coast", "drill"],
+                        value="trap",
+                        label="Style",
+                    )
+                    bpm_slider = gr.Slider(
+                        minimum=60, maximum=180, value=140, step=5, label="BPM"
+                    )
+                    bars_dropdown = gr.Dropdown(
+                        choices=[2, 4, 8], value=4, label="Bars"
+                    )
+                    loops_slider = gr.Slider(
+                        minimum=1, maximum=8, value=4, step=1, label="Loops"
+                    )
+                    generate_beat_btn = gr.Button("Generate Beat", variant="primary")
+
+                with gr.Column():
+                    beat_audio = gr.Audio(label="Generated Beat", type="filepath")
+                    beat_status = gr.Textbox(label="Status", interactive=False)
+
+            with gr.Accordion("Beat Pattern JSON", open=False):
+                beat_json = gr.Code(label="Pattern", language="json")
+
+            generate_beat_btn.click(
+                fn=handle_beat_generation,
+                inputs=[style_dropdown, bpm_slider, bars_dropdown, loops_slider],
+                outputs=[beat_audio, beat_json, beat_status],
             )
 
         with gr.TabItem("Text Formatter"):
