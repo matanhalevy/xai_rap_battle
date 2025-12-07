@@ -45,16 +45,18 @@ def generate_video_from_image(
     output_path: Path | None = None,
     duration: int = 10,
     ratio: str = "1280:720",
+    model: str = "gen4_turbo",
 ) -> tuple[str | None, str]:
     """
     Generate a video from an image using Runway's image-to-video API.
 
     Args:
-        image_path: Path to the source image (will be uploaded or used as URL)
+        image_path: Path to the source image
         prompt_text: Director-style prompt for video generation
         output_path: Where to save the output video
         duration: Video duration in seconds (5 or 10)
         ratio: Output aspect ratio
+        model: Model to use (gen4_turbo or gen3a_turbo)
 
     Returns:
         Tuple of (video_path, status_message)
@@ -89,7 +91,7 @@ def generate_video_from_image(
             f"{API_BASE}/image_to_video",
             headers=headers,
             json={
-                "model": "gen4_turbo",
+                "model": model,
                 "promptImage": prompt_image,
                 "promptText": prompt_text,
                 "ratio": ratio,
@@ -210,6 +212,7 @@ def generate_all_videos(
     image_paths: list[str],
     theme: str,
     speakers: list[str],
+    duration: int = 10,
 ) -> tuple[list[str], str]:
     """
     Generate videos for all storyboard images.
@@ -218,6 +221,7 @@ def generate_all_videos(
         image_paths: List of image file paths
         theme: Visual theme
         speakers: List of speaker names for each segment
+        duration: Video duration in seconds (5 or 10)
 
     Returns:
         Tuple of (list of video paths, status message)
@@ -233,6 +237,7 @@ def generate_all_videos(
             image_path=image_path,
             prompt_text=prompt,
             output_path=output_path,
+            duration=duration,
         )
 
         if video_path is None:

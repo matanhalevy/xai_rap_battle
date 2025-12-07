@@ -33,14 +33,19 @@ class BattleSegment:
         return combined
 
 
-def parse_rap_script(script: str) -> list[BattleSegment]:
+def parse_rap_script(script: str, speaker_a_name: str = "", speaker_b_name: str = "") -> list[BattleSegment]:
     """
     Parse a rap battle script into segments.
 
     Expected format:
-    - "[Person A]" or "Person A:" markers
-    - "[Person B]" or "Person B:" markers
+    - "[Person A]" or "Person A:" or custom name like "Elon Musk"
+    - "[Person B]" or "Person B:" or custom name like "Sam Altman"
     - "[Conclusion]" or "[Both]" for finale
+
+    Args:
+        script: The rap battle script
+        speaker_a_name: Optional custom name for speaker A (auto-detected if empty)
+        speaker_b_name: Optional custom name for speaker B (auto-detected if empty)
 
     Returns:
         List of BattleSegment objects (typically 5: A, B, A, B, Conclusion)
@@ -48,19 +53,18 @@ def parse_rap_script(script: str) -> list[BattleSegment]:
     segments = []
     lines = script.strip().split("\n")
 
+    # Auto-detect speaker names if not provided
+    if not speaker_a_name or not speaker_b_name:
+        detected_names = _detect_speaker_names(lines)
+        if not speaker_a_name and len(detected_names) > 0:
+            speaker_a_name = detected_names[0]
+        if not speaker_b_name and len(detected_names) > 1:
+            speaker_b_name = detected_names[1]
+
     current_speaker = None
     current_verses = []
     current_raw = []
     segment_index = 0
-
-    # Patterns for speaker markers
-    speaker_patterns = [
-        (r"^\[?\s*Person\s*A\s*\]?:?\s*$", Speaker.PERSON_A),
-        (r"^\[?\s*Person\s*B\s*\]?:?\s*$", Speaker.PERSON_B),
-        (r"^\[?\s*(Conclusion|Both|Finale)\s*\]?:?\s*$", Speaker.BOTH),
-        (r"^Person\s*A\s*[-–—:]", Speaker.PERSON_A),
-        (r"^Person\s*B\s*[-–—:]", Speaker.PERSON_B),
-    ]
 
     def save_current_segment():
         nonlocal current_speaker, current_verses, current_raw, segment_index
@@ -76,19 +80,42 @@ def parse_rap_script(script: str) -> list[BattleSegment]:
         current_verses = []
         current_raw = []
 
+    def check_speaker(line: str) -> Speaker | None:
+        """Check if line is a speaker marker."""
+        line_lower = line.lower().strip()
+
+        # Check for conclusion/both
+        if re.match(r"^\[?\s*(conclusion|both|finale)\s*\]?:?\s*$", line_lower):
+            return Speaker.BOTH
+
+        # Check for Person A/B
+        if re.match(r"^\[?\s*person\s*a\s*\]?:?\s*$", line_lower):
+            return Speaker.PERSON_A
+        if re.match(r"^\[?\s*person\s*b\s*\]?:?\s*$", line_lower):
+            return Speaker.PERSON_B
+
+        # Check for custom speaker names
+        if speaker_a_name:
+            pattern_a = rf"^\[?\s*{re.escape(speaker_a_name)}\s*\]?:?\s*$"
+            if re.match(pattern_a, line, re.IGNORECASE):
+                return Speaker.PERSON_A
+
+        if speaker_b_name:
+            pattern_b = rf"^\[?\s*{re.escape(speaker_b_name)}\s*\]?:?\s*$"
+            if re.match(pattern_b, line, re.IGNORECASE):
+                return Speaker.PERSON_B
+
+        return None
+
     for line in lines:
         line_stripped = line.strip()
         if not line_stripped:
             continue
 
         # Check for speaker markers
-        new_speaker = None
-        for pattern, speaker in speaker_patterns:
-            if re.match(pattern, line_stripped, re.IGNORECASE):
-                new_speaker = speaker
-                break
+        new_speaker = check_speaker(line_stripped)
 
-        if new_speaker:
+        if new_speaker is not None:
             save_current_segment()
             current_speaker = new_speaker
         elif current_speaker:
@@ -110,6 +137,43 @@ def parse_rap_script(script: str) -> list[BattleSegment]:
         ))
 
     return segments
+
+
+def _detect_speaker_names(lines: list[str]) -> list[str]:
+    """
+    Auto-detect speaker names from script.
+    Looks for lines that appear to be speaker markers (short lines, possibly with brackets/colons).
+    """
+    potential_speakers = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # Skip if too long (likely a verse, not a name)
+        if len(line) > 50:
+            continue
+
+        # Check if it looks like a speaker marker
+        # Short line, possibly with brackets or colon
+        if re.match(r"^\[?[A-Za-z\s]+\]?:?\s*$", line):
+            # Clean the name
+            name = re.sub(r"[\[\]:]+", "", line).strip()
+
+            # Skip common non-name markers
+            skip_words = ["verse", "chorus", "hook", "bridge", "intro", "outro", "conclusion", "both", "finale"]
+            if name.lower() in skip_words:
+                continue
+
+            if name and name not in potential_speakers:
+                potential_speakers.append(name)
+
+            # Stop after finding 2 unique speakers
+            if len(potential_speakers) >= 2:
+                break
+
+    return potential_speakers
 
 
 def ensure_five_segments(segments: list[BattleSegment]) -> list[BattleSegment]:

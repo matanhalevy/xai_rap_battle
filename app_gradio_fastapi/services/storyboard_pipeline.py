@@ -46,6 +46,8 @@ def run_storyboard_pipeline(
     theme: str,
     audio_clips: list[str],
     beat_path: str | None = None,
+    speaker_a_name: str = "",
+    speaker_b_name: str = "",
     character_a_desc: str = "intense male rapper in streetwear, hood up, gold chains",
     character_b_desc: str = "confident female rapper in urban fashion, braids, bold makeup",
     skip_video_generation: bool = False,
@@ -55,12 +57,14 @@ def run_storyboard_pipeline(
     Run the full storyboard pipeline.
 
     Args:
-        script: The rap battle script with Person A/B markers
+        script: The rap battle script with speaker name markers
         theme: Visual theme (medieval, space, cyberpunk, etc.)
         audio_clips: List of 4 audio files (one per turn: A, B, A, B)
         beat_path: Optional path to the beat/instrumental track (continuous underneath)
-        character_a_desc: Description of Person A
-        character_b_desc: Description of Person B
+        speaker_a_name: Name of speaker A as it appears in script (e.g., "Elon Musk")
+        speaker_b_name: Name of speaker B as it appears in script (e.g., "Sam Altman")
+        character_a_desc: Visual description of speaker A for image generation
+        character_b_desc: Visual description of speaker B for image generation
         skip_video_generation: If True, only generate images (faster for testing)
         enable_lipsync: If True, use Sync Labs for lip sync (requires URL hosting)
 
@@ -82,7 +86,9 @@ def run_storyboard_pipeline(
 
     # Step 1: Parse the script
     status_messages.append("Parsing rap script...")
-    segments = parse_rap_script(script)
+    if speaker_a_name or speaker_b_name:
+        status_messages.append(f"Speaker names: {speaker_a_name or 'auto'} vs {speaker_b_name or 'auto'}")
+    segments = parse_rap_script(script, speaker_a_name, speaker_b_name)
     segments = ensure_five_segments(segments)
     status_messages.append(f"Parsed {len(segments)} segments")
 

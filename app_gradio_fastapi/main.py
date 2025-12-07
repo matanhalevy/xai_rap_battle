@@ -126,6 +126,8 @@ def handle_storyboard_preview(script: str, theme: str, char_a: str, char_b: str)
 def handle_full_video_generation(
     script: str,
     theme: str,
+    speaker_a: str,
+    speaker_b: str,
     audio_turn1,
     audio_turn2,
     audio_turn3,
@@ -158,6 +160,8 @@ def handle_full_video_generation(
         theme=theme,
         audio_clips=audio_paths,
         beat_path=beat_path,
+        speaker_a_name=speaker_a.strip(),
+        speaker_b_name=speaker_b.strip(),
         character_a_desc=char_a if char_a.strip() else "intense male rapper in streetwear",
         character_b_desc=char_b if char_b.strip() else "confident female rapper in urban fashion",
     )
@@ -378,13 +382,24 @@ I'll write your name in flames and let the history scroll
 [Conclusion]
 The battle ends, the crowd roars, who will claim the throne?""",
                     )
-                    with gr.Accordion("Character Descriptions", open=False):
+                    with gr.Accordion("Character Settings", open=True):
+                        with gr.Row():
+                            speaker_a_name = gr.Textbox(
+                                label="Speaker A Name",
+                                placeholder="e.g., Elon Musk",
+                                info="Name as it appears in script",
+                            )
+                            speaker_b_name = gr.Textbox(
+                                label="Speaker B Name",
+                                placeholder="e.g., Sam Altman",
+                                info="Name as it appears in script",
+                            )
                         char_a_input = gr.Textbox(
-                            label="Person A Description",
+                            label="Speaker A Visual Description",
                             value="intense male rapper in streetwear, hood up, gold chains",
                         )
                         char_b_input = gr.Textbox(
-                            label="Person B Description",
+                            label="Speaker B Visual Description",
                             value="confident female rapper in urban fashion, braids, bold makeup",
                         )
                     gr.Markdown("**Audio Clips (one per turn)**")
@@ -431,7 +446,7 @@ The battle ends, the crowd roars, who will claim the throne?""",
             )
             generate_btn.click(
                 fn=handle_full_video_generation,
-                inputs=[script_input, theme_input, audio_turn1, audio_turn2, audio_turn3, audio_turn4, beat_upload, char_a_input, char_b_input],
+                inputs=[script_input, theme_input, speaker_a_name, speaker_b_name, audio_turn1, audio_turn2, audio_turn3, audio_turn4, beat_upload, char_a_input, char_b_input],
                 outputs=[storyboard_gallery, video_output, status_output],
             )
 
