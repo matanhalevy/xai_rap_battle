@@ -12,7 +12,10 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
-load_dotenv()
+# Find project root and load env files
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+load_dotenv(PROJECT_ROOT / ".env")  # Load base first
+load_dotenv(PROJECT_ROOT / ".env.local", override=True)  # Local overrides with priority
 
 API_KEY = os.environ.get("XAI_API_KEY")
 BASE_URL = "https://us-east-4.api.x.ai/voice-staging"
