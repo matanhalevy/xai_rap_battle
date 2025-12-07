@@ -79,23 +79,17 @@
                         <div class="style-voice-row">
                             <div class="style-col">
                                 <label class="pixel-label">RAP STYLE</label>
-                                <div class="pixel-dropdown" id="dropdown-style-a" data-value="UK Grime 1 (Stormzy)">
+                                <div class="pixel-dropdown" id="dropdown-style-a" data-value="">
                                     <div class="pixel-dropdown-selected">
-                                        <span class="pixel-dropdown-text">UK GRIME (STORMZY)</span>
+                                        <span class="pixel-dropdown-text">LOADING...</span>
                                         <span class="pixel-dropdown-arrow">▼</span>
                                     </div>
                                     <div class="pixel-dropdown-options">
-                                        <div class="pixel-dropdown-option selected" data-value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</div>
-                                        <div class="pixel-dropdown-option" data-value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</div>
-                                        <div class="pixel-dropdown-option" data-value="Toronto Rap (Drake)">TORONTO (DRAKE)</div>
-                                        <div class="pixel-dropdown-option" data-value="West Coast (Kendrick)">WEST COAST (KENDRICK)</div>
+                                        <!-- Populated dynamically from /api/presets/styles -->
                                     </div>
                                 </div>
                                 <select id="style-a" class="pixel-select compact" style="display:none;">
-                                    <option value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</option>
-                                    <option value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</option>
-                                    <option value="Toronto Rap (Drake)">TORONTO (DRAKE)</option>
-                                    <option value="West Coast (Kendrick)">WEST COAST (KENDRICK)</option>
+                                    <!-- Populated dynamically from /api/presets/styles -->
                                 </select>
                             </div>
                             <div class="voice-col">
@@ -134,17 +128,50 @@
                 <!-- Shared Battle Config -->
                 <div class="battle-config">
                     <div class="config-group">
-                        <label class="pixel-label center">BATTLE THEME</label>
-                        <input type="text" id="theme" class="pixel-input" placeholder="cyberpunk neon city">
+                        <label class="pixel-label center">VIDEO STYLE</label>
+                        <div class="pixel-dropdown" id="dropdown-video-style" data-value="Photorealistic">
+                            <div class="pixel-dropdown-selected">
+                                <span class="pixel-dropdown-text">PHOTOREALISTIC</span>
+                                <span class="pixel-dropdown-arrow">▼</span>
+                            </div>
+                            <div class="pixel-dropdown-options">
+                                <div class="pixel-dropdown-option selected" data-value="Photorealistic">PHOTOREALISTIC</div>
+                                <div class="pixel-dropdown-option" data-value="Pixar/3D Animation">PIXAR/3D</div>
+                                <div class="pixel-dropdown-option" data-value="Anime">ANIME</div>
+                                <div class="pixel-dropdown-option" data-value="8-bit Pixel Art">8-BIT PIXEL</div>
+                                <div class="pixel-dropdown-option" data-value="Comic Book/Graphic Novel">COMIC BOOK</div>
+                                <div class="pixel-dropdown-option" data-value="Oil Painting">OIL PAINTING</div>
+                                <div class="pixel-dropdown-option" data-value="Noir/Black & White">NOIR B&W</div>
+                                <div class="pixel-dropdown-option" data-value="Neon Synthwave">SYNTHWAVE</div>
+                                <div class="pixel-dropdown-option" data-value="Claymation">CLAYMATION</div>
+                            </div>
+                        </div>
+                        <select id="video-style" style="display:none;">
+                            <option value="Photorealistic" selected>PHOTOREALISTIC</option>
+                        </select>
                     </div>
 
                     <div class="config-group">
-                        <label class="pixel-label">BEAT STYLE</label>
-                        <select id="beat-style" class="pixel-select">
-                            <option value="trap">TRAP</option>
-                            <option value="boom bap">BOOM BAP</option>
-                            <option value="drill">DRILL</option>
-                            <option value="west coast">WEST COAST</option>
+                        <label class="pixel-label center">LOCATION</label>
+                        <input type="text" id="location" class="pixel-input" placeholder="underground hip-hop club">
+                    </div>
+
+                    <div class="config-group">
+                        <label class="pixel-label center">BEAT STYLE</label>
+                        <div class="pixel-dropdown" id="dropdown-beat-style" data-value="trap">
+                            <div class="pixel-dropdown-selected">
+                                <span class="pixel-dropdown-text">TRAP</span>
+                                <span class="pixel-dropdown-arrow">▼</span>
+                            </div>
+                            <div class="pixel-dropdown-options">
+                                <div class="pixel-dropdown-option selected" data-value="trap">TRAP</div>
+                                <div class="pixel-dropdown-option" data-value="boom bap">BOOM BAP</div>
+                                <div class="pixel-dropdown-option" data-value="drill">DRILL</div>
+                                <div class="pixel-dropdown-option" data-value="west coast">WEST COAST</div>
+                            </div>
+                        </div>
+                        <select id="beat-style" style="display:none;">
+                            <option value="trap" selected>TRAP</option>
                         </select>
                     </div>
 
@@ -224,23 +251,17 @@
                         <div class="style-voice-row">
                             <div class="style-col">
                                 <label class="pixel-label">RAP STYLE</label>
-                                <div class="pixel-dropdown" id="dropdown-style-b" data-value="West Coast (Kendrick)">
+                                <div class="pixel-dropdown" id="dropdown-style-b" data-value="">
                                     <div class="pixel-dropdown-selected">
-                                        <span class="pixel-dropdown-text">WEST COAST (KENDRICK)</span>
+                                        <span class="pixel-dropdown-text">LOADING...</span>
                                         <span class="pixel-dropdown-arrow">▼</span>
                                     </div>
                                     <div class="pixel-dropdown-options">
-                                        <div class="pixel-dropdown-option" data-value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</div>
-                                        <div class="pixel-dropdown-option" data-value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</div>
-                                        <div class="pixel-dropdown-option" data-value="Toronto Rap (Drake)">TORONTO (DRAKE)</div>
-                                        <div class="pixel-dropdown-option selected" data-value="West Coast (Kendrick)">WEST COAST (KENDRICK)</div>
+                                        <!-- Populated dynamically from /api/presets/styles -->
                                     </div>
                                 </div>
                                 <select id="style-b" class="pixel-select compact" style="display:none;">
-                                    <option value="West Coast (Kendrick)">WEST COAST (KENDRICK)</option>
-                                    <option value="UK Grime 1 (Stormzy)">UK GRIME (STORMZY)</option>
-                                    <option value="NY Rap (A$AP Rocky)">NY RAP (A$AP ROCKY)</option>
-                                    <option value="Toronto Rap (Drake)">TORONTO (DRAKE)</option>
+                                    <!-- Populated dynamically from /api/presets/styles -->
                                 </select>
                             </div>
                             <div class="voice-col">

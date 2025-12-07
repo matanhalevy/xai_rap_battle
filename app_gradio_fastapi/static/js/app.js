@@ -28,7 +28,8 @@ const state = {
         twitter: ''
     },
     battle: {
-        theme: 'cyberpunk neon city',
+        videoStyle: 'Photorealistic',
+        location: 'underground hip-hop club',
         beatStyle: 'trap',
         testMode: true,
         audioOnly: true
@@ -71,7 +72,8 @@ const elements = {
     twitterB: document.getElementById('twitter-b'),
 
     // Battle config
-    theme: document.getElementById('theme'),
+    videoStyle: document.getElementById('video-style'),
+    location: document.getElementById('location'),
     beatStyle: document.getElementById('beat-style'),
     bpm: document.getElementById('bpm'),
     bpmValue: document.getElementById('bpm-value'),
@@ -205,8 +207,13 @@ function setupEventListeners() {
     });
 
     // Battle config inputs
-    elements.theme.addEventListener('input', (e) => {
-        state.battle.theme = e.target.value;
+    elements.videoStyle.addEventListener('change', (e) => {
+        state.battle.videoStyle = e.target.value;
+        saveState();
+    });
+
+    elements.location.addEventListener('input', (e) => {
+        state.battle.location = e.target.value;
         saveState();
     });
 
@@ -369,9 +376,11 @@ function loadSavedState() {
         // Restore Battle config
         if (data.battle) {
             state.battle = { ...state.battle, ...data.battle };
-            elements.theme.value = state.battle.theme;
+            elements.videoStyle.value = state.battle.videoStyle;
+            elements.location.value = state.battle.location;
             elements.beatStyle.value = state.battle.beatStyle;
             elements.testMode.checked = state.battle.testMode;
+            elements.audioOnly.checked = state.battle.audioOnly;
         }
     } catch (e) {
         console.error('Failed to load saved state:', e);
@@ -423,7 +432,9 @@ async function startBattle() {
         const formData = new FormData();
 
         // Battle config (BPM auto-detected from rap audio)
-        formData.append('theme', state.battle.theme);
+        formData.append('video_style', state.battle.videoStyle);
+        formData.append('location', state.battle.location);
+        formData.append('time_period', 'present day');  // Default time period
         formData.append('beat_style', state.battle.beatStyle);
         formData.append('test_mode', state.battle.testMode);
         formData.append('audio_only', state.battle.audioOnly);
@@ -488,8 +499,14 @@ function validateBattleInputs() {
     if (!state.fighterB.name.trim()) {
         return { valid: false, message: 'PLAYER 2 NEEDS A NAME!' };
     }
-    if (!state.battle.theme.trim()) {
-        return { valid: false, message: 'SET A BATTLE THEME!' };
+    if (!state.fighterA.lyrics.trim()) {
+        return { valid: false, message: 'PLAYER 1 NEEDS LYRICS!' };
+    }
+    if (!state.fighterB.lyrics.trim()) {
+        return { valid: false, message: 'PLAYER 2 NEEDS LYRICS!' };
+    }
+    if (!state.battle.location.trim()) {
+        return { valid: false, message: 'SET A LOCATION!' };
     }
     return { valid: true };
 }
@@ -1053,7 +1070,10 @@ function closeVoiceRecording() {
 // ============================================
 // CUSTOM DROPDOWN
 // ============================================
-function initDropdowns() {
+async function initDropdowns() {
+    // Fetch style presets from API
+    await loadStylePresets();
+
     document.querySelectorAll('.pixel-dropdown').forEach(dropdown => {
         const selected = dropdown.querySelector('.pixel-dropdown-selected');
         const options = dropdown.querySelector('.pixel-dropdown-options');
@@ -1107,6 +1127,75 @@ function initDropdowns() {
     document.addEventListener('click', () => {
         document.querySelectorAll('.pixel-dropdown.open').forEach(d => d.classList.remove('open'));
     });
+}
+
+/**
+ * Load style presets from API and populate style dropdowns
+ */
+async function loadStylePresets() {
+    try {
+        const response = await fetch('/api/presets/styles');
+        if (!response.ok) {
+            console.error('Failed to fetch style presets');
+            return;
+        }
+
+        const data = await response.json();
+        const presets = data.presets;
+
+        // Populate both style dropdowns
+        populateStyleDropdown('dropdown-style-a', 'style-a', presets, state.fighterA.style);
+        populateStyleDropdown('dropdown-style-b', 'style-b', presets, state.fighterB.style);
+    } catch (error) {
+        console.error('Error loading style presets:', error);
+    }
+}
+
+/**
+ * Populate a style dropdown with preset options
+ */
+function populateStyleDropdown(dropdownId, selectId, presets, defaultValue) {
+    const dropdown = document.getElementById(dropdownId);
+    const hiddenSelect = document.getElementById(selectId);
+
+    if (!dropdown || !hiddenSelect) return;
+
+    const optionsContainer = dropdown.querySelector('.pixel-dropdown-options');
+    const textEl = dropdown.querySelector('.pixel-dropdown-text');
+
+    // Clear existing options
+    optionsContainer.innerHTML = '';
+    hiddenSelect.innerHTML = '';
+
+    // Find the default preset or use first one
+    let defaultPreset = presets.find(p => p.value === defaultValue) || presets[0];
+
+    // Populate options
+    presets.forEach(preset => {
+        // Create pixel dropdown option
+        const option = document.createElement('div');
+        option.className = 'pixel-dropdown-option';
+        if (preset.value === defaultPreset.value) {
+            option.classList.add('selected');
+        }
+        option.dataset.value = preset.value;
+        option.textContent = preset.label;
+        optionsContainer.appendChild(option);
+
+        // Create hidden select option
+        const selectOption = document.createElement('option');
+        selectOption.value = preset.value;
+        selectOption.textContent = preset.label;
+        if (preset.value === defaultPreset.value) {
+            selectOption.selected = true;
+        }
+        hiddenSelect.appendChild(selectOption);
+    });
+
+    // Set default value
+    dropdown.dataset.value = defaultPreset.value;
+    textEl.textContent = defaultPreset.label;
+    hiddenSelect.value = defaultPreset.value;
 }
 
 // ============================================

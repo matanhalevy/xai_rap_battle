@@ -13,9 +13,9 @@ flagged/*
 outputs/
 
 # Voice samples (may contain copyrighted material)
-voices/*.mp3
-voices/*.m4a
-voices/*.wav
+# voices/*.mp3
+# voices/*.m4a
+# voices/*.wav
 
 # Created by https://www.toptal.com/developers/gitignore/api/pycharm+all
 # Edit at https://www.toptal.com/developers/gitignore?templates=pycharm+all

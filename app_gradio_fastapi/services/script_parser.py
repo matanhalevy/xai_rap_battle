@@ -14,6 +14,14 @@ class Speaker(Enum):
     BOTH = "Both"
 
 
+class ShotType(Enum):
+    """Type of shot in the 6-shot storyboard structure."""
+    OPENING = "opening"      # Shot 1: Panning crowd, both characters, setting the scene
+    VERSE = "verse"          # Shots 2-5: Single speaker focus with verse delivery
+    REACTION = "reaction"    # Variant for shots 4-5: Both in frame with reaction
+    CLOSING = "closing"      # Shot 6: Final standoff, crowd reaction, fade out
+
+
 @dataclass
 class BattleSegment:
     """A segment of the rap battle (one turn)."""
@@ -251,3 +259,134 @@ def ensure_five_segments(segments: list[BattleSegment]) -> list[BattleSegment]:
         is_conclusion=True,
     ))
     return result
+
+
+@dataclass
+class StoryboardShot:
+    """
+    A single shot in the 6-shot storyboard structure.
+    Maps verses to cinematic shots with camera directions.
+    """
+    index: int                    # 0-5 for 6 shots
+    shot_type: ShotType           # OPENING, VERSE, REACTION, CLOSING
+    primary_speaker: Speaker      # Main character in shot
+    show_reaction: bool           # Whether to show other character reacting
+    verse_index: int | None       # Which verse (0-3) if applicable, None for opening/closing
+    camera_direction: str         # Camera movement description
+    audio_source: str             # "intro", "verse_0", "verse_1", etc., "outro"
+    verse_text: str = ""          # The actual verse lyrics (for prompting)
+
+    @property
+    def needs_lipsync(self) -> bool:
+        """Whether this shot needs lip sync (verse shots only)."""
+        return self.shot_type == ShotType.VERSE or self.shot_type == ShotType.REACTION
+
+
+# Camera directions for each of the 6 shots
+SHOT_CAMERA_DIRECTIONS = {
+    0: "Cinematic crane shot panning across crowd, revealing both performers on stage, building anticipation, slow zoom toward center stage",
+    1: "Low-angle push-in, performer spreads arms wide then points at camera, dramatic rim lighting, passionate delivery",
+    2: "Dutch angle tracking shot, performer walks into frame with swagger, confident gestures, stylish cross-lighting",
+    3: "Medium shot showing both performers, focus on speaker delivering bars while opponent visible reacting in background, tension building",
+    4: "Dynamic arc shot around performer, quick cut showing opponent's surprised reaction, then back to triumphant delivery",
+    5: "Epic wide crane pullback, both performers step toward center, crowd erupting, confetti falling, triumphant finale",
+}
+
+
+def create_storyboard_shots(segments: list[BattleSegment]) -> list[StoryboardShot]:
+    """
+    Create 6-shot storyboard structure from battle segments.
+
+    Maps 4 verses (A, B, A, B) to 6 shots:
+    - Shot 0: Opening (intro with beat)
+    - Shot 1: Verse 1 - Person A
+    - Shot 2: Verse 2 - Person B
+    - Shot 3: Verse 3 - Person A (with B reaction in frame)
+    - Shot 4: Verse 4 - Person B (with A reaction, quick cuts)
+    - Shot 5: Closing (outro with beat)
+
+    Args:
+        segments: List of BattleSegment objects (should have 4 verse segments)
+
+    Returns:
+        List of 6 StoryboardShot objects
+    """
+    shots = []
+
+    # Shot 0: Opening
+    shots.append(StoryboardShot(
+        index=0,
+        shot_type=ShotType.OPENING,
+        primary_speaker=Speaker.BOTH,
+        show_reaction=False,
+        verse_index=None,
+        camera_direction=SHOT_CAMERA_DIRECTIONS[0],
+        audio_source="intro",
+        verse_text="",
+    ))
+
+    # Shot 1: Verse 1 - Person A
+    verse_1_text = segments[0].verse_summary if len(segments) > 0 else ""
+    shots.append(StoryboardShot(
+        index=1,
+        shot_type=ShotType.VERSE,
+        primary_speaker=Speaker.PERSON_A,
+        show_reaction=False,
+        verse_index=0,
+        camera_direction=SHOT_CAMERA_DIRECTIONS[1],
+        audio_source="verse_0",
+        verse_text=verse_1_text,
+    ))
+
+    # Shot 2: Verse 2 - Person B
+    verse_2_text = segments[1].verse_summary if len(segments) > 1 else ""
+    shots.append(StoryboardShot(
+        index=2,
+        shot_type=ShotType.VERSE,
+        primary_speaker=Speaker.PERSON_B,
+        show_reaction=False,
+        verse_index=1,
+        camera_direction=SHOT_CAMERA_DIRECTIONS[2],
+        audio_source="verse_1",
+        verse_text=verse_2_text,
+    ))
+
+    # Shot 3: Verse 3 - Person A with B reaction (both in frame)
+    verse_3_text = segments[2].verse_summary if len(segments) > 2 else ""
+    shots.append(StoryboardShot(
+        index=3,
+        shot_type=ShotType.REACTION,
+        primary_speaker=Speaker.PERSON_A,
+        show_reaction=True,  # Show Person B reacting
+        verse_index=2,
+        camera_direction=SHOT_CAMERA_DIRECTIONS[3],
+        audio_source="verse_2",
+        verse_text=verse_3_text,
+    ))
+
+    # Shot 4: Verse 4 - Person B with quick cut to A reaction
+    verse_4_text = segments[3].verse_summary if len(segments) > 3 else ""
+    shots.append(StoryboardShot(
+        index=4,
+        shot_type=ShotType.REACTION,
+        primary_speaker=Speaker.PERSON_B,
+        show_reaction=True,  # Show Person A reacting with quick cuts
+        verse_index=3,
+        camera_direction=SHOT_CAMERA_DIRECTIONS[4],
+        audio_source="verse_3",
+        verse_text=verse_4_text,
+    ))
+
+    # Shot 5: Closing
+    shots.append(StoryboardShot(
+        index=5,
+        shot_type=ShotType.CLOSING,
+        primary_speaker=Speaker.BOTH,
+        show_reaction=False,
+        verse_index=None,
+        camera_direction=SHOT_CAMERA_DIRECTIONS[5],
+        audio_source="outro",
+        verse_text="",
+    ))
+
+    return shots

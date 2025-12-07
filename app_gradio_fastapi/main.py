@@ -25,7 +25,12 @@ from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
 from app_gradio_fastapi.services.beat_api import generate_beat_pattern
 from app_gradio_fastapi.services.beat_generator import get_generator
 from app_gradio_fastapi.services.lyric_api import generate_all_verses
-from app_gradio_fastapi.services.storyboard_pipeline import run_storyboard_pipeline, run_storyboard_only
+from app_gradio_fastapi.services.storyboard_pipeline import (
+    run_storyboard_pipeline,
+    run_storyboard_only,
+    run_6shot_pipeline,
+    SixShotPipelineResult,
+)
 from app_gradio_fastapi.config.style_presets import (
     get_dropdown_choices,
     get_preset_path,
@@ -209,8 +214,9 @@ def handle_generate_all_lyrics(
     char1_twitter: str,
     char2_name: str,
     char2_twitter: str,
-    theme: str,
-    scene: str,
+    video_style: str,
+    location: str,
+    topic: str,
     beat_style: str,
     beat_bpm: int,
 ):
@@ -219,15 +225,18 @@ def handle_generate_all_lyrics(
         return "", "", "", "", "Error: Please enter Character 1's name"
     if not char2_name.strip():
         return "", "", "", "", "Error: Please enter Character 2's name"
-    if not theme.strip():
-        return "", "", "", "", "Error: Please enter a battle theme"
+    if not topic.strip():
+        return "", "", "", "", "Error: Please enter a battle topic"
+
+    # Build scene description from location (time_period removed, defaults to present day)
+    scene = f"{location}, {video_style} visual style"
 
     verses, status = generate_all_verses(
         char1_name=char1_name.strip(),
         char1_twitter=char1_twitter.strip() if char1_twitter else None,
         char2_name=char2_name.strip(),
         char2_twitter=char2_twitter.strip() if char2_twitter else None,
-        topic=theme.strip(),
+        topic=topic.strip(),
         description="",
         scene_description=scene.strip() if scene else "",
         beat_style=beat_style,
@@ -507,7 +516,8 @@ def handle_beat_generation(style: str, bpm: int, bars: int, loops: int):
 
 def handle_storyboard_preview(
     script: str,
-    theme: str,
+    video_style: str,
+    location: str,
     char_a: str,
     char_b: str,
     speaker_a_img=None,
@@ -516,8 +526,8 @@ def handle_storyboard_preview(
     """Generate storyboard images only (quick preview)."""
     if not script.strip():
         return [], "Error: Please enter a rap script"
-    if not theme.strip():
-        return [], "Error: Please enter a theme"
+    if not location.strip():
+        return [], "Error: Please enter a location"
 
     # Speaker reference photos (enables Image Edit API for face preservation)
     speaker_a_image_path = None
@@ -529,7 +539,8 @@ def handle_storyboard_preview(
 
     images, messages = run_storyboard_only(
         script=script,
-        theme=theme,
+        video_style=video_style,
+        location=location,
         character_a_desc=char_a if char_a.strip() else "intense male rapper in streetwear",
         character_b_desc=char_b if char_b.strip() else "confident female rapper in urban fashion",
         speaker_a_image=speaker_a_image_path,
@@ -540,7 +551,8 @@ def handle_storyboard_preview(
 
 def handle_full_video_generation(
     script: str,
-    theme: str,
+    video_style: str,
+    location: str,
     speaker_a: str,
     speaker_b: str,
     speaker_a_img,
@@ -557,8 +569,8 @@ def handle_full_video_generation(
     """Generate rap battle video with audio clips + beat + lip sync."""
     if not script.strip():
         return [], None, "Error: Please enter a rap script"
-    if not theme.strip():
-        return [], None, "Error: Please enter a theme"
+    if not location.strip():
+        return [], None, "Error: Please enter a location"
 
     # Collect audio paths for each turn
     audio_files = [audio_turn1, audio_turn2] if test_mode else [audio_turn1, audio_turn2, audio_turn3, audio_turn4]
@@ -584,7 +596,8 @@ def handle_full_video_generation(
 
     result = run_storyboard_pipeline(
         script=script,
-        theme=theme,
+        video_style=video_style,
+        location=location,
         audio_clips=audio_paths,
         beat_path=beat_path,
         speaker_a_name=speaker_a.strip(),
@@ -598,6 +611,165 @@ def handle_full_video_generation(
     )
 
     return result.storyboard_images, result.final_video, "\n".join(result.status_messages)
+
+
+def handle_6shot_video_generation(
+    script: str,
+    video_style: str,
+    location: str,
+    speaker_a: str,
+    speaker_b: str,
+    speaker_a_img,
+    speaker_b_img,
+    audio_turn1,
+    audio_turn2,
+    audio_turn3,
+    audio_turn4,
+    beat_file,
+    char_a: str,
+    char_b: str,
+    generate_env_ref: bool,
+):
+    """Generate 6-shot rap battle video with environment reference and lip sync."""
+    if not script.strip():
+        return None, [], None, "Error: Please enter a rap script"
+    if not location.strip():
+        return None, [], None, "Error: Please enter a location"
+
+    # Collect audio paths for each verse (need all 4)
+    audio_files = [audio_turn1, audio_turn2, audio_turn3, audio_turn4]
+    audio_paths = []
+    for i, audio_file in enumerate(audio_files, 1):
+        if audio_file is None:
+            return None, [], None, f"Error: Please upload audio for Verse {i}"
+        path = audio_file.name if hasattr(audio_file, "name") else audio_file
+        audio_paths.append(path)
+
+    # Beat track (optional but recommended for intro/outro)
+    beat_path = None
+    if beat_file is not None:
+        beat_path = beat_file.name if hasattr(beat_file, "name") else beat_file
+
+    # Speaker reference photos
+    speaker_a_image_path = None
+    speaker_b_image_path = None
+    if speaker_a_img is not None:
+        speaker_a_image_path = speaker_a_img if isinstance(speaker_a_img, str) else speaker_a_img
+    if speaker_b_img is not None:
+        speaker_b_image_path = speaker_b_img if isinstance(speaker_b_img, str) else speaker_b_img
+
+    result = run_6shot_pipeline(
+        script=script,
+        video_style=video_style,
+        location=location,
+        audio_clips=audio_paths,
+        beat_path=beat_path,
+        speaker_a_name=speaker_a.strip() if speaker_a else "",
+        speaker_b_name=speaker_b.strip() if speaker_b else "",
+        speaker_a_image=speaker_a_image_path,
+        speaker_b_image=speaker_b_image_path,
+        character_a_desc=char_a if char_a.strip() else "intense male rapper in streetwear",
+        character_b_desc=char_b if char_b.strip() else "confident female rapper in urban fashion",
+        generate_env_reference=generate_env_ref,
+        enable_lipsync=True,
+    )
+
+    return (
+        result.environment_image,
+        result.storyboard_images,
+        result.final_video,
+        "\n".join(result.status_messages),
+    )
+
+
+def handle_6shot_storyboard_preview(
+    script: str,
+    video_style: str,
+    location: str,
+    char_a: str,
+    char_b: str,
+    speaker_a_img=None,
+    speaker_b_img=None,
+    generate_env_ref: bool = True,
+):
+    """Preview 6-shot storyboard images without video generation."""
+    from app_gradio_fastapi.services.script_parser import parse_rap_script, create_storyboard_shots, Speaker, BattleSegment, ShotType
+    from app_gradio_fastapi.services.grok_image_api import generate_environment_reference, generate_storyboard_image, build_storyboard_prompt, edit_storyboard_image, build_edit_prompt
+
+    if not script.strip():
+        return None, [], "Error: Please enter a rap script"
+    if not location.strip():
+        return None, [], "Error: Please enter a location"
+
+    status_messages = []
+
+    # Parse script
+    segments = parse_rap_script(script)
+    while len(segments) < 4:
+        idx = len(segments)
+        expected = [Speaker.PERSON_A, Speaker.PERSON_B, Speaker.PERSON_A, Speaker.PERSON_B]
+        segments.append(BattleSegment(
+            index=idx,
+            speaker=expected[idx] if idx < 4 else Speaker.BOTH,
+            verses=["..."],
+            raw_text="...",
+            is_conclusion=False,
+        ))
+    status_messages.append(f"Parsed {len(segments)} segments")
+
+    # Create 6-shot structure
+    shots = create_storyboard_shots(segments[:4])
+    status_messages.append("Created 6-shot storyboard structure")
+
+    # Generate environment reference
+    environment_image = None
+    if generate_env_ref:
+        status_messages.append("Generating environment reference...")
+        environment_image, env_status = generate_environment_reference(
+            location=location,
+            video_style=video_style,
+        )
+        status_messages.append(env_status)
+
+    # Generate 6 storyboard images
+    status_messages.append("Generating 6 storyboard images...")
+    storyboard_images = []
+
+    use_reference_photos = speaker_a_img and speaker_b_img
+
+    for shot in shots:
+        if shot.primary_speaker == Speaker.PERSON_A:
+            char_desc = char_a if char_a.strip() else "intense male rapper in streetwear"
+            ref_image = speaker_a_img
+        elif shot.primary_speaker == Speaker.PERSON_B:
+            char_desc = char_b if char_b.strip() else "confident female rapper in urban fashion"
+            ref_image = speaker_b_img
+        else:
+            char_desc = f"{char_a if char_a.strip() else 'intense male rapper'} and {char_b if char_b.strip() else 'confident female rapper'}"
+            ref_image = speaker_a_img
+
+        shot_segment = BattleSegment(
+            index=shot.index,
+            speaker=shot.primary_speaker,
+            verses=[shot.verse_text] if shot.verse_text else ["..."],
+            raw_text=shot.verse_text or "...",
+            is_conclusion=(shot.shot_type == ShotType.CLOSING),
+        )
+
+        if use_reference_photos and ref_image:
+            prompt = build_edit_prompt(shot_segment, video_style, location, char_desc)
+            img_path, img_status = edit_storyboard_image(ref_image, prompt)
+        else:
+            prompt = build_storyboard_prompt(shot_segment, video_style, location, char_desc, char_desc)
+            img_path, img_status = generate_storyboard_image(prompt)
+
+        if img_path is None:
+            status_messages.append(f"Failed at shot {shot.index}: {img_status}")
+            return environment_image, storyboard_images, "\n".join(status_messages)
+        storyboard_images.append(img_path)
+
+    status_messages.append(f"Generated {len(storyboard_images)} storyboard images")
+    return environment_image, storyboard_images, "\n".join(status_messages)
 
 
 with gr.Blocks(title="Grok DJ Rap Battle") as demo:
@@ -643,15 +815,30 @@ Configure your rap battle characters and generate verses with audio.
 
             gr.Markdown("### Battle Setup")
             with gr.Row():
-                battle_theme = gr.Textbox(
-                    label="Battle Theme",
-                    placeholder="e.g., Tech CEOs, AI vs Humans, East Coast vs West Coast",
+                battle_video_style = gr.Dropdown(
+                    label="Video Style",
+                    choices=[
+                        "Photorealistic",
+                        "Pixar/3D Animation",
+                        "Anime",
+                        "8-bit Pixel Art",
+                        "Comic Book/Graphic Novel",
+                        "Oil Painting",
+                        "Noir/Black & White",
+                        "Neon Synthwave",
+                        "Claymation",
+                    ],
+                    value="Photorealistic",
+                )
+                battle_location = gr.Textbox(
+                    label="Location",
+                    placeholder="e.g., underground club, rooftop, street corner, stadium",
+                    value="underground hip-hop club",
                 )
             with gr.Row():
-                scene_description = gr.Textbox(
-                    label="Scene Description",
-                    lines=2,
-                    placeholder="Describe the setting (used for lyrics context and future video generation)...",
+                battle_topic = gr.Textbox(
+                    label="Battle Topic",
+                    placeholder="e.g., Tech CEOs, AI vs Humans, East Coast vs West Coast",
                 )
 
             gr.Markdown("### Beat Configuration")
@@ -954,8 +1141,9 @@ Configure your rap battle characters and generate verses with audio.
                     char1_twitter,
                     char2_name,
                     char2_twitter,
-                    battle_theme,
-                    scene_description,
+                    battle_video_style,
+                    battle_location,
+                    battle_topic,
                     beat_style,
                     beat_bpm,
                 ],
@@ -1027,8 +1215,16 @@ Configure your rap battle characters and generate verses with audio.
             )
 
         with gr.TabItem("Rap Battle Video"):
-            gr.Markdown("""## Rap Battle Video Generator
-Generate storyboard images and videos from a rap battle script.
+            gr.Markdown("""## Rap Battle Video Generator (6-Shot Structure)
+Generate cinematic rap battle videos with consistent environment and lip sync.
+
+**6-Shot Structure:**
+1. Opening - Panning crowd shot, both characters
+2. Verse 1 - Person A's opening verse
+3. Verse 2 - Person B's response
+4. Verse 3 - Person A with B reaction
+5. Verse 4 - Person B with A reaction
+6. Closing - Finale with crowd
 
 **Format your script with Person A/B markers:**
 ```
@@ -1037,38 +1233,58 @@ Verse 1 line 1
 Verse 1 line 2...
 
 [Person B]
-Verse 1 line 1...
+Verse 2 line 1...
 ```
             """)
 
             with gr.Row():
                 with gr.Column():
-                    theme_input = gr.Textbox(
-                        label="Theme",
-                        placeholder="e.g., medieval, space, cyberpunk, underwater, post-apocalyptic",
-                        value="cyberpunk neon city",
+                    video_style_input = gr.Dropdown(
+                        label="Video Style",
+                        choices=[
+                            "Photorealistic",
+                            "Pixar/3D Animation",
+                            "Anime",
+                            "8-bit Pixel Art",
+                            "Comic Book/Graphic Novel",
+                            "Oil Painting",
+                            "Noir/Black & White",
+                            "Neon Synthwave",
+                            "Claymation",
+                        ],
+                        value="Photorealistic",
+                    )
+                    location_input = gr.Textbox(
+                        label="Location",
+                        placeholder="e.g., underground club, rooftop, street corner, stadium",
+                        value="underground hip-hop club",
                     )
                     script_input = gr.Textbox(
-                        label="Rap Script",
+                        label="Rap Script (4 verses: A, B, A, B)",
                         lines=15,
                         placeholder="""[Person A]
 Yo I step into the ring, crown heavy on my head
 Medieval bars so cold, leave your kingdom for dead
+I'm the ruler of this stage, bow down to my reign
+Every word I spit is fire, feel the lyrical pain
 
 [Person B]
 You call yourself a king? That throne is made of lies
 I'm the dragon in the sky, watch your empire die
+Your crown is made of plastic, mine's forged in gold
+Step back little prince, let a real queen unfold
 
 [Person A]
 Back for round two, my sword still sharp and true
 Castle walls can't save you from what I'm about to do
+I've conquered every battle, left legends in my wake
+You're just another pretender, another crown to break
 
 [Person B]
 Your reign ends tonight, no crown can save your soul
 I'll write your name in flames and let the history scroll
-
-[Conclusion]
-The battle ends, the crowd roars, who will claim the throne?""",
+The crowd knows who won this, they're chanting my name loud
+I'm the undisputed champion, standing tall and proud""",
                     )
                     with gr.Accordion("Character Settings", open=True):
                         with gr.Row():
@@ -1100,32 +1316,33 @@ The battle ends, the crowd roars, who will claim the throne?""",
                             label="Speaker B Visual Description",
                             value="confident female rapper in urban fashion, braids, bold makeup",
                         )
-                    test_mode_checkbox = gr.Checkbox(
-                        label="Test Mode (2 turns only - saves API credits)",
-                        value=True,
-                        info="Generate only A, B, Conclusion instead of full 5 segments",
-                    )
-                    gr.Markdown("**Audio Clips (one per turn)**")
+                    with gr.Accordion("Environment Settings", open=True):
+                        generate_env_ref_checkbox = gr.Checkbox(
+                            label="Generate environment reference image",
+                            value=True,
+                            info="Creates a consistent environment/setting reference for all shots",
+                        )
+                    gr.Markdown("**Audio Clips (4 verses required for 6-shot structure)**")
                     with gr.Row():
                         audio_turn1 = gr.File(
-                            label="Turn 1: Person A",
+                            label="Verse 1: Person A",
                             file_types=[".mp3", ".wav", ".m4a"],
                         )
                         audio_turn2 = gr.File(
-                            label="Turn 2: Person B",
+                            label="Verse 2: Person B",
                             file_types=[".mp3", ".wav", ".m4a"],
                         )
                     with gr.Row():
                         audio_turn3 = gr.File(
-                            label="Turn 3: Person A (full mode only)",
+                            label="Verse 3: Person A",
                             file_types=[".mp3", ".wav", ".m4a"],
                         )
                         audio_turn4 = gr.File(
-                            label="Turn 4: Person B (full mode only)",
+                            label="Verse 4: Person B",
                             file_types=[".mp3", ".wav", ".m4a"],
                         )
                     beat_upload = gr.File(
-                        label="Beat Track (continuous instrumental)",
+                        label="Beat Track (for intro/outro extraction)",
                         file_types=[".mp3", ".wav", ".m4a"],
                     )
 
@@ -1134,23 +1351,42 @@ The battle ends, the crowd roars, who will claim the throne?""",
                         generate_btn = gr.Button("Generate Full Video", variant="primary")
 
                 with gr.Column():
+                    env_preview = gr.Image(
+                        label="Environment Reference",
+                        type="filepath",
+                        height=200,
+                    )
                     storyboard_gallery = gr.Gallery(
-                        label="Storyboard Images",
+                        label="6-Shot Storyboard (Opening, 4 Verses, Closing)",
                         columns=3,
+                        rows=2,
                         height="auto",
                     )
                     video_output = gr.Video(label="Final Battle Video")
-                    status_output = gr.Textbox(label="Status", lines=8, interactive=False)
+                    status_output = gr.Textbox(label="Status", lines=10, interactive=False)
 
             preview_btn.click(
-                fn=handle_storyboard_preview,
-                inputs=[script_input, theme_input, char_a_input, char_b_input, speaker_a_image, speaker_b_image],
-                outputs=[storyboard_gallery, status_output],
+                fn=handle_6shot_storyboard_preview,
+                inputs=[
+                    script_input, video_style_input, location_input,
+                    char_a_input, char_b_input,
+                    speaker_a_image, speaker_b_image,
+                    generate_env_ref_checkbox,
+                ],
+                outputs=[env_preview, storyboard_gallery, status_output],
             )
             generate_btn.click(
-                fn=handle_full_video_generation,
-                inputs=[script_input, theme_input, speaker_a_name, speaker_b_name, speaker_a_image, speaker_b_image, test_mode_checkbox, audio_turn1, audio_turn2, audio_turn3, audio_turn4, beat_upload, char_a_input, char_b_input],
-                outputs=[storyboard_gallery, video_output, status_output],
+                fn=handle_6shot_video_generation,
+                inputs=[
+                    script_input, video_style_input, location_input,
+                    speaker_a_name, speaker_b_name,
+                    speaker_a_image, speaker_b_image,
+                    audio_turn1, audio_turn2, audio_turn3, audio_turn4,
+                    beat_upload,
+                    char_a_input, char_b_input,
+                    generate_env_ref_checkbox,
+                ],
+                outputs=[env_preview, storyboard_gallery, video_output, status_output],
             )
 
         with gr.TabItem("Text Formatter"):
