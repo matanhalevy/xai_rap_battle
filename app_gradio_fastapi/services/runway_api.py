@@ -16,13 +16,13 @@ API_BASE = "https://api.dev.runwayml.com/v1"
 API_VERSION = "2024-11-06"
 OUTPUTS_DIR = Path("outputs/videos")
 
-# Director-style camera directions for each segment
+# Director-style prompts with dynamic character movement
 CAMERA_DIRECTIONS = {
-    0: "Cinematic low-angle push-in shot, camera slowly dollies forward toward rapper's face, dramatic rim lighting from behind, smoke atmosphere, rapper gestures aggressively toward camera, shallow depth of field",
-    1: "Dutch angle medium shot, camera orbits 15 degrees around subject, opponent enters frame confidently, harsh cross-lighting creates dramatic shadows, subtle camera shake for intensity",
-    2: "Extreme close-up on face, slow zoom out to medium shot revealing full pose, top-down spotlight creates pool of light, rapper leans into camera with pointed finger, anamorphic lens flare",
-    3: "Steadicam circular tracking shot, 180-degree arc around rapper, silhouette backlit by colored stage lights, camera rises from low to eye level, crowd blur in background",
-    4: "Wide establishing shot, slow crane down to both rappers facing each other, split lighting warm vs cool tones, camera pushes between them, dramatic pause, winner celebration with confetti and strobing lights",
+    0: "Cinematic low-angle push-in, performer spreads arms wide then points toward camera, head nodding to rhythm, expressive face, shoulders moving, dramatic rim lighting, atmospheric haze, passionate delivery",
+    1: "Dutch angle tracking shot, performer walks into frame with confidence, arms crossed then opening to gesture, head tilting with knowing smile, stepping forward, jewelry catching light, stylish cross-lighting",
+    2: "Extreme close-up pulling back as performer leans forward with intensity, hand gesturing toward camera, focused expression, then steps back with arms spread in confident pose, dramatic lighting",
+    3: "Steadicam arc shot, performer turning with arms extended then stopping to place hand on chest, mic hand raised then lowering to point down, head moving with energy, body grooving to beat",
+    4: "Wide crane shot, both performers step toward center stage, building tension, one raises hand while other stands confident, dramatic pause then celebration - winner jumps with arms raised, confetti falling, crowd cheering",
 }
 
 

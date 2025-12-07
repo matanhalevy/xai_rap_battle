@@ -176,6 +176,41 @@ def _detect_speaker_names(lines: list[str]) -> list[str]:
     return potential_speakers
 
 
+def ensure_three_segments(segments: list[BattleSegment]) -> list[BattleSegment]:
+    """
+    Ensure we have exactly 3 segments for test mode: A, B, Conclusion.
+    """
+    if len(segments) >= 3:
+        # Take first 2 and make 3rd the conclusion
+        result = segments[:2]
+        if len(segments) >= 3:
+            conclusion = segments[2] if segments[2].speaker == Speaker.BOTH else BattleSegment(
+                index=2,
+                speaker=Speaker.BOTH,
+                verses=segments[2].verses if len(segments) > 2 else ["..."],
+                raw_text=segments[2].raw_text if len(segments) > 2 else "...",
+                is_conclusion=True,
+            )
+        else:
+            conclusion = BattleSegment(
+                index=2, speaker=Speaker.BOTH, verses=["..."], raw_text="...", is_conclusion=True
+            )
+        conclusion.index = 2
+        conclusion.is_conclusion = True
+        result.append(conclusion)
+        return result
+
+    # Pad if less than 3
+    expected = [Speaker.PERSON_A, Speaker.PERSON_B, Speaker.BOTH]
+    result = segments.copy()
+    while len(result) < 3:
+        idx = len(result)
+        result.append(BattleSegment(
+            index=idx, speaker=expected[idx], verses=["..."], raw_text="...", is_conclusion=(idx == 2)
+        ))
+    return result
+
+
 def ensure_five_segments(segments: list[BattleSegment]) -> list[BattleSegment]:
     """
     Ensure we have exactly 5 segments for the standard battle format:

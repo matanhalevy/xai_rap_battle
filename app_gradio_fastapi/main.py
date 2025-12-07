@@ -162,6 +162,9 @@ def handle_full_video_generation(
     theme: str,
     speaker_a: str,
     speaker_b: str,
+    speaker_a_img,
+    speaker_b_img,
+    test_mode: bool,
     audio_turn1,
     audio_turn2,
     audio_turn3,
@@ -170,15 +173,16 @@ def handle_full_video_generation(
     char_a: str,
     char_b: str,
 ):
-    """Generate full rap battle video with 4 turn audio clips + beat."""
+    """Generate rap battle video with audio clips + beat + lip sync."""
     if not script.strip():
         return [], None, "Error: Please enter a rap script"
     if not theme.strip():
         return [], None, "Error: Please enter a theme"
 
     # Collect audio paths for each turn
+    audio_files = [audio_turn1, audio_turn2] if test_mode else [audio_turn1, audio_turn2, audio_turn3, audio_turn4]
     audio_paths = []
-    for i, audio_file in enumerate([audio_turn1, audio_turn2, audio_turn3, audio_turn4], 1):
+    for i, audio_file in enumerate(audio_files, 1):
         if audio_file is None:
             return [], None, f"Error: Please upload audio for Turn {i}"
         path = audio_file.name if hasattr(audio_file, "name") else audio_file
@@ -198,6 +202,8 @@ def handle_full_video_generation(
         speaker_b_name=speaker_b.strip(),
         character_a_desc=char_a if char_a.strip() else "intense male rapper in streetwear",
         character_b_desc=char_b if char_b.strip() else "confident female rapper in urban fashion",
+        test_mode=test_mode,
+        enable_lipsync=True,  # Always enabled
     )
 
     return result.storyboard_images, result.final_video, "\n".join(result.status_messages)
@@ -511,6 +517,16 @@ The battle ends, the crowd roars, who will claim the throne?""",
                                 placeholder="e.g., Sam Altman",
                                 info="Name as it appears in script",
                             )
+                        gr.Markdown("**Reference Photos** (for consistent character appearance)")
+                        with gr.Row():
+                            speaker_a_image = gr.Image(
+                                label="Speaker A Photo",
+                                type="filepath",
+                            )
+                            speaker_b_image = gr.Image(
+                                label="Speaker B Photo",
+                                type="filepath",
+                            )
                         char_a_input = gr.Textbox(
                             label="Speaker A Visual Description",
                             value="intense male rapper in streetwear, hood up, gold chains",
@@ -519,6 +535,11 @@ The battle ends, the crowd roars, who will claim the throne?""",
                             label="Speaker B Visual Description",
                             value="confident female rapper in urban fashion, braids, bold makeup",
                         )
+                    test_mode_checkbox = gr.Checkbox(
+                        label="Test Mode (2 turns only - saves API credits)",
+                        value=True,
+                        info="Generate only A, B, Conclusion instead of full 5 segments",
+                    )
                     gr.Markdown("**Audio Clips (one per turn)**")
                     with gr.Row():
                         audio_turn1 = gr.File(
@@ -531,11 +552,11 @@ The battle ends, the crowd roars, who will claim the throne?""",
                         )
                     with gr.Row():
                         audio_turn3 = gr.File(
-                            label="Turn 3: Person A",
+                            label="Turn 3: Person A (full mode only)",
                             file_types=[".mp3", ".wav", ".m4a"],
                         )
                         audio_turn4 = gr.File(
-                            label="Turn 4: Person B",
+                            label="Turn 4: Person B (full mode only)",
                             file_types=[".mp3", ".wav", ".m4a"],
                         )
                     beat_upload = gr.File(
@@ -563,7 +584,7 @@ The battle ends, the crowd roars, who will claim the throne?""",
             )
             generate_btn.click(
                 fn=handle_full_video_generation,
-                inputs=[script_input, theme_input, speaker_a_name, speaker_b_name, audio_turn1, audio_turn2, audio_turn3, audio_turn4, beat_upload, char_a_input, char_b_input],
+                inputs=[script_input, theme_input, speaker_a_name, speaker_b_name, speaker_a_image, speaker_b_image, test_mode_checkbox, audio_turn1, audio_turn2, audio_turn3, audio_turn4, beat_upload, char_a_input, char_b_input],
                 outputs=[storyboard_gallery, video_output, status_output],
             )
 

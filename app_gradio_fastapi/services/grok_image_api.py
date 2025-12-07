@@ -140,7 +140,7 @@ def generate_all_storyboards(
     Generate storyboard images for all battle segments.
 
     Args:
-        segments: List of 5 battle segments
+        segments: List of battle segments
         theme: Visual theme
         character_a_desc: Description of Person A
         character_b_desc: Description of Person B

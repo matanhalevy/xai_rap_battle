@@ -16,6 +16,74 @@ API_BASE = "https://api.sync.so/v2"
 OUTPUTS_DIR = Path("outputs/lipsynced")
 
 
+def upload_to_temp_host(file_path: str) -> tuple[str | None, str]:
+    """
+    Upload a local file to litterbox.catbox.moe for temporary hosting.
+    Files are kept for 1 hour.
+
+    Args:
+        file_path: Path to the local file
+
+    Returns:
+        Tuple of (url, status_message)
+    """
+    try:
+        with open(file_path, "rb") as f:
+            response = requests.post(
+                "https://litterbox.catbox.moe/resources/internals/api.php",
+                data={"reqtype": "fileupload", "time": "1h"},
+                files={"fileToUpload": f},
+                timeout=120,
+            )
+
+        if not response.ok:
+            return None, f"Upload failed: {response.status_code} - {response.text}"
+
+        # Litterbox returns the URL directly as plain text
+        url = response.text.strip()
+        if not url.startswith("http"):
+            return None, f"Upload failed: {url}"
+
+        return url, f"Uploaded to {url}"
+
+    except Exception as e:
+        return None, f"Upload error: {e}"
+
+
+def upload_files_for_lipsync(
+    video_paths: list[str],
+    audio_paths: list[str],
+) -> tuple[list[str], list[str], str]:
+    """
+    Upload video and audio files to temp hosting for Sync Labs.
+
+    Args:
+        video_paths: List of local video file paths
+        audio_paths: List of local audio file paths
+
+    Returns:
+        Tuple of (video_urls, audio_urls, status_message)
+    """
+    video_urls = []
+    audio_urls = []
+
+    # Upload videos
+    for i, path in enumerate(video_paths):
+        url, status = upload_to_temp_host(path)
+        if url is None:
+            return video_urls, audio_urls, f"Failed to upload video {i}: {status}"
+        video_urls.append(url)
+
+    # Upload audio
+    for i, path in enumerate(audio_paths):
+        url, status = upload_to_temp_host(path)
+        if url is None:
+            return video_urls, audio_urls, f"Failed to upload audio {i}: {status}"
+        audio_urls.append(url)
+
+    return video_urls, audio_urls, f"Uploaded {len(video_urls)} videos and {len(audio_urls)} audio files"
+
+
 def create_lipsync_generation(
     video_url: str,
     audio_url: str,

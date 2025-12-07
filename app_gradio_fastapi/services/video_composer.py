@@ -58,12 +58,12 @@ def trim_or_loop_video(clip: VideoFileClip, target_duration: float) -> VideoFile
 
     if current_duration > target_duration:
         # Trim
-        return clip.subclip(0, target_duration)
+        return clip.subclipped(0, target_duration)
     else:
         # Loop to fill duration
         loops_needed = int(target_duration / current_duration) + 1
         looped = concatenate_videoclips([clip] * loops_needed)
-        return looped.subclip(0, target_duration)
+        return looped.subclipped(0, target_duration)
 
 
 def compose_battle_video(
@@ -288,10 +288,11 @@ def compose_with_audio_clips(
     """
     from moviepy import CompositeAudioClip, concatenate_audioclips
 
-    if len(video_paths) != 5:
-        return None, f"Error: Expected 5 videos, got {len(video_paths)}"
-    if len(audio_clips) != 4:
-        return None, f"Error: Expected 4 audio clips, got {len(audio_clips)}"
+    # Support both full mode (5 videos, 4 audio) and test mode (3 videos, 2 audio)
+    if len(video_paths) not in [3, 5]:
+        return None, f"Error: Expected 3 or 5 videos, got {len(video_paths)}"
+    if len(audio_clips) not in [2, 4]:
+        return None, f"Error: Expected 2 or 4 audio clips, got {len(audio_clips)}"
 
     if output_path is None:
         OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -314,16 +315,16 @@ def compose_with_audio_clips(
         total_audio_duration = combined_audio.duration
 
         # Step 3: Load and adjust video clips to match audio durations exactly
+        num_audio = len(audio_clips)
         for i, video_path in enumerate(video_paths):
             video = VideoFileClip(video_path)
 
-            if i < 4:
+            if i < num_audio:
                 # Match video to exact audio duration
                 target_duration = audio_durations[i]
                 video = trim_or_loop_video(video, target_duration)
             else:
-                # 5th video (conclusion) - use a reasonable duration
-                # Default to 5 seconds or keep original if shorter
+                # Conclusion video - use a reasonable duration
                 conclusion_duration = min(video.duration, 5.0)
                 video = trim_or_loop_video(video, conclusion_duration)
 
