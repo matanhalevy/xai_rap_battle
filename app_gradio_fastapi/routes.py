@@ -1,5 +1,6 @@
 """API routes for the Grok Rap Battle application."""
 
+import asyncio
 import json
 import logging
 import tempfile
@@ -12,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from app_gradio_fastapi.helpers import session_logger
 from app_gradio_fastapi.config.style_presets import STYLE_PRESETS, CUSTOM_UPLOAD_LABEL
 from app_gradio_fastapi.services.battle_manager import BattleManager, BattleConfig
+from app_gradio_fastapi.services.lyric_api import generate_all_verses
 
 
 router = APIRouter()
@@ -38,6 +40,61 @@ async def get_style_presets():
     ]
     presets.append({"value": "custom", "label": "CUSTOM VOICE..."})
     return {"presets": presets}
+
+
+@router.post("/api/lyrics/generate")
+async def generate_lyrics(
+    fighter_a_name: Annotated[str, Form()],
+    fighter_b_name: Annotated[str, Form()],
+    theme: Annotated[str, Form()],
+    fighter_a_twitter: Annotated[str, Form()] = "",
+    fighter_b_twitter: Annotated[str, Form()] = "",
+    fighter_a_description: Annotated[str, Form()] = "",
+    fighter_b_description: Annotated[str, Form()] = "",
+    fighter_a_style: Annotated[str, Form()] = "UK Grime 1 (Stormzy)",
+    fighter_b_style: Annotated[str, Form()] = "West Coast (Kendrick)",
+    beat_style: Annotated[str, Form()] = "trap",
+    beat_bpm: Annotated[int, Form()] = 140,
+):
+    """Generate rap battle lyrics using Twitter context."""
+    try:
+        logging.info(f"Starting lyrics generation for {fighter_a_name} vs {fighter_b_name}")
+
+        # Run blocking API calls in thread pool
+        verses, status = await asyncio.to_thread(
+            generate_all_verses,
+            char1_name=fighter_a_name,
+            char1_twitter=fighter_a_twitter or None,
+            char2_name=fighter_b_name,
+            char2_twitter=fighter_b_twitter or None,
+            topic=theme,
+            description=f"{fighter_a_description} vs {fighter_b_description}",
+            scene_description="An intense rap battle arena with a hyped crowd",
+            char1_rap_style=fighter_a_style,
+            char2_rap_style=fighter_b_style,
+            beat_style=beat_style,
+            beat_bpm=beat_bpm,
+        )
+
+        logging.info(f"Lyrics generation complete: {status}")
+
+        if not verses:
+            raise HTTPException(status_code=500, detail=status)
+
+        # Combine verses for each fighter (verses 0,2 for A, verses 1,3 for B)
+        fighter_a_lyrics = "\n\n".join([verses[0], verses[2]]) if len(verses) >= 3 else verses[0] if verses else ""
+        fighter_b_lyrics = "\n\n".join([verses[1], verses[3]]) if len(verses) >= 4 else verses[1] if len(verses) > 1 else ""
+
+        return {
+            "fighter_a_lyrics": fighter_a_lyrics,
+            "fighter_b_lyrics": fighter_b_lyrics,
+            "all_verses": verses,
+            "status": status
+        }
+
+    except Exception as e:
+        logging.error(f"Failed to generate lyrics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/api/battle/start")

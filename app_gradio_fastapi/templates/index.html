@@ -58,15 +58,10 @@
                         <div class="config-group half">
                             <label class="pixel-label">PORTRAIT</label>
                             <div class="input-row">
-                                <div class="file-upload-wrapper">
-                                    <input type="file" id="image-a" accept="image/*" class="file-input">
-                                    <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-a').click()">
-                                        <span class="btn-icon">+</span> FILE
-                                    </button>
-                                </div>
-                                <button type="button" class="pixel-btn camera-btn" id="camera-btn-a" onclick="openCamera('A')">
-                                    <span class="btn-icon">CAM</span>
-                                </button>
+                                <input type="file" id="image-a" accept="image/*" class="hidden-input">
+                                <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-a').click()">
+                                    +FILE
+                                </button><button type="button" class="pixel-btn camera-btn" id="camera-btn-a" onclick="openCamera('A')">CAMERA</button>
                             </div>
                         </div>
                         <div class="config-group half">
@@ -120,8 +115,8 @@
                     </div>
 
                     <div class="config-group">
-                        <label class="pixel-label">RAP LYRICS</label>
-                        <textarea id="lyrics-a" class="pixel-textarea lyrics" rows="6" placeholder="Yo, I step into the ring..."></textarea>
+                        <label class="pixel-label">RAP LYRICS (LEAVE EMPTY TO AUTO-GENERATE)</label>
+                        <textarea id="lyrics-a" class="pixel-textarea lyrics" rows="6" placeholder="Leave empty to auto-generate from X profile..."></textarea>
                     </div>
                 </div>
             </section>
@@ -208,15 +203,10 @@
                         <div class="config-group half">
                             <label class="pixel-label">PORTRAIT</label>
                             <div class="input-row">
-                                <div class="file-upload-wrapper">
-                                    <input type="file" id="image-b" accept="image/*" class="file-input">
-                                    <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-b').click()">
-                                        <span class="btn-icon">+</span> FILE
-                                    </button>
-                                </div>
-                                <button type="button" class="pixel-btn camera-btn" id="camera-btn-b" onclick="openCamera('B')">
-                                    <span class="btn-icon">CAM</span>
-                                </button>
+                                <input type="file" id="image-b" accept="image/*" class="hidden-input">
+                                <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-b').click()">
+                                    +FILE
+                                </button><button type="button" class="pixel-btn camera-btn" id="camera-btn-b" onclick="openCamera('B')">CAMERA</button>
                             </div>
                         </div>
                         <div class="config-group half">
@@ -270,8 +260,8 @@
                     </div>
 
                     <div class="config-group">
-                        <label class="pixel-label">RAP LYRICS</label>
-                        <textarea id="lyrics-b" class="pixel-textarea lyrics" rows="6" placeholder="Hold up, let me take the stage..."></textarea>
+                        <label class="pixel-label">RAP LYRICS (LEAVE EMPTY TO AUTO-GENERATE)</label>
+                        <textarea id="lyrics-b" class="pixel-textarea lyrics" rows="6" placeholder="Leave empty to auto-generate from X profile..."></textarea>
                     </div>
                 </div>
             </section>
@@ -400,6 +390,22 @@
                     <div class="detected-bpm-display">
                         <span class="bpm-label">DETECTED BPM:</span>
                         <span class="bpm-value-display" id="detected-bpm-display">--</span>
+                    </div>
+                </div>
+
+                <!-- Live Lyrics Display -->
+                <div class="lyrics-display" id="lyrics-display">
+                    <div class="lyrics-header">
+                        <span class="lyrics-fighter" id="lyrics-fighter-name">FIGHTER</span>
+                        <span class="lyrics-verse-num" id="lyrics-verse-num">VERSE 1</span>
+                    </div>
+                    <div class="lyrics-content">
+                        <div class="lyrics-line prev" id="lyrics-prev"></div>
+                        <div class="lyrics-line current" id="lyrics-current"></div>
+                        <div class="lyrics-line next" id="lyrics-next"></div>
+                    </div>
+                    <div class="lyrics-progress">
+                        <div class="lyrics-progress-bar" id="lyrics-progress-bar"></div>
                     </div>
                 </div>
 

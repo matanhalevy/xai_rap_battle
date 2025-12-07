@@ -2,6 +2,7 @@
 Grok API integration for rap battle lyric generation.
 """
 
+import logging
 import os
 import re
 
@@ -14,13 +15,14 @@ API_KEY = os.environ.get("XAI_API_KEY")
 API_BASE = "https://api.x.ai/v1"
 
 
-VERSE_PROMPT_TEMPLATE = '''You are a legendary battle rapper known for devastating punchlines, clever wordplay, and authentic flow.
+VERSE_PROMPT_TEMPLATE = '''You are a legendary battle rapper known for devastating punchlines, clever wordplay, and TIGHT RHYMES.
 
 BATTLE TOPIC: {topic}
 {description}
 {beat_context}
 
 CURRENT RAPPER: {rapper_name}
+RAP STYLE: {rap_style}
 OPPONENT: {opponent_name}
 {personality_context}
 
@@ -34,18 +36,29 @@ VERSE NUMBER: {verse_number} of 4
 {previous_verses_section}
 
 INSTRUCTIONS:
-1. Write a SHORT verse (4-6 bars, ~15 seconds when rapped) for {rapper_name}
-2. Each bar should be on its own line
-3. Use clever wordplay, metaphors, and punchlines
-4. Focus lyrics on the BATTLE TOPIC and dissing your OPPONENT
+1. Write a VERY SHORT verse (2-3 bars MAX, ~8 seconds when rapped) for {rapper_name}
+2. EVERY LINE MUST RHYME - use end rhymes, internal rhymes, and multisyllabic rhyme schemes
+3. The flow and cadence MUST match the {rap_style} style - study how artists in this style rap
+4. Focus on dissing {opponent_name} and the BATTLE TOPIC
 5. {verse_specific_instruction}
-6. Make it sound authentic to battle rap culture
-7. Include internal rhymes and multisyllabic rhyme schemes
-8. Use character NAMES in lyrics, NEVER use Twitter handles or @ symbols
-9. The scene/venue can be referenced ONCE across all verses, but don't repeat it - focus on the opponent and topic
-10. Match your flow and cadence to the beat style and tempo
+6. Make it FLOW smoothly - each bar should connect rhythmically to the next
+7. Use character NAMES in lyrics, NEVER use Twitter handles or @ symbols
 
-OUTPUT FORMAT: Return ONLY the verse lyrics, one bar per line. No explanations, no labels, just the raw lyrics.'''
+RAP STYLE GUIDANCE FOR {rap_style}:
+{style_guidance}
+
+OUTPUT FORMAT: Return ONLY the verse lyrics, one bar per line. No explanations, no labels, just the raw bars.'''
+
+
+RAP_STYLE_GUIDANCE = {
+    "UK Grime 1 (Stormzy)": "Fast, aggressive, staccato delivery. Sharp consonants, London slang. Skippy rhythms, intense energy. Think Stormzy's 'Shut Up' flow.",
+    "UK Grime 2 (Skepta)": "Cold, calculated, menacing. Minimal words, maximum impact. East London energy. Think Skepta's 'That's Not Me' flow.",
+    "NY Rap (A$AP Rocky)": "Smooth, laid-back but hard-hitting. Triplet flows, melodic elements. Harlem swag. Think Rocky's 'Peso' flow.",
+    "Toronto Rap (Drake)": "Melodic, emotional, braggadocious. Singing mixed with rapping. Introspective flex. Think Drake's 'Back to Back' diss flow.",
+    "West Coast (Kendrick)": "Complex rhyme schemes, storytelling, rapid switches. Compton energy. Think Kendrick's 'DNA' or 'Humble' flow.",
+    "Atlanta Trap (Future)": "Melodic, auto-tune influenced, bouncy. Ad-libs between bars. Think Future's mumble-flow energy.",
+    "Chicago Drill (Chief Keef)": "Dark, menacing, sliding 808s. Short punchy phrases. Aggressive and raw. Think Chief Keef's 'Love Sosa' energy.",
+}
 
 
 def _build_previous_verses_section(previous_verses: list[dict]) -> str:
@@ -110,6 +123,7 @@ def generate_verse(
     scene_description: str,
     previous_verses: list[dict],
     verse_number: int,
+    rap_style: str = "West Coast (Kendrick)",
     beat_style: str | None = None,
     beat_bpm: int | None = None,
     tweet_context: str = "",
@@ -161,6 +175,9 @@ def generate_verse(
 
 Use this intel to make your bars PERSONAL and CURRENT. Reference their real tweets, opinions, and any beef between them!"""
 
+    # Get style guidance for the rapper's style
+    style_guidance = RAP_STYLE_GUIDANCE.get(rap_style, "Deliver hard-hitting bars with tight rhymes and smooth flow.")
+
     # Build the prompt
     prompt = VERSE_PROMPT_TEMPLATE.format(
         topic=topic,
@@ -168,6 +185,8 @@ Use this intel to make your bars PERSONAL and CURRENT. Reference their real twee
         beat_context=_get_beat_flow_guidance(beat_style, beat_bpm),
         scene_description=scene_description or "A packed venue with an electric crowd",
         rapper_name=rapper_name,
+        rap_style=rap_style,
+        style_guidance=style_guidance,
         opponent_name=opponent_name,
         personality_context=personality_context,
         tweet_context=tweet_context_section,
@@ -223,6 +242,8 @@ def generate_all_verses(
     topic: str,
     description: str,
     scene_description: str,
+    char1_rap_style: str = "UK Grime 1 (Stormzy)",
+    char2_rap_style: str = "West Coast (Kendrick)",
     beat_style: str | None = None,
     beat_bpm: int | None = None,
 ) -> tuple[list[str], str]:
@@ -239,6 +260,8 @@ def generate_all_verses(
         topic: Battle topic
         description: Battle description
         scene_description: Scene setting description
+        char1_rap_style: Rap style for character 1
+        char2_rap_style: Rap style for character 2
         beat_style: Optional beat style (trap, boom bap, west coast, drill)
         beat_bpm: Optional tempo in BPM
 
@@ -251,24 +274,26 @@ def generate_all_verses(
     # Fetch tweet context if handles are provided
     tweet_context = ""
     if char1_twitter or char2_twitter:
+        logging.info(f"Fetching Twitter context for {char1_twitter} and {char2_twitter}...")
         from app_gradio_fastapi.services.twitter_api import get_tweet_context_for_battle
         tweet_context, tweet_status = get_tweet_context_for_battle(
             char1_handle=char1_twitter,
             char2_handle=char2_twitter,
         )
-        # Log tweet fetch status (context will be empty string if fetch failed)
-        if tweet_context:
-            print(f"Tweet context fetched: {tweet_status}")
+        logging.info(f"Twitter context: {tweet_status}")
+    else:
+        logging.info("No Twitter handles provided, skipping context fetch")
 
-    # Define the verse order: (rapper_name, rapper_twitter, opponent_name, opponent_twitter)
+    # Define the verse order: (rapper_name, rapper_twitter, rapper_style, opponent_name, opponent_twitter)
     verse_order = [
-        (char1_name, char1_twitter, char2_name, char2_twitter),  # Verse 1: char1
-        (char2_name, char2_twitter, char1_name, char1_twitter),  # Verse 2: char2
-        (char1_name, char1_twitter, char2_name, char2_twitter),  # Verse 3: char1
-        (char2_name, char2_twitter, char1_name, char1_twitter),  # Verse 4: char2
+        (char1_name, char1_twitter, char1_rap_style, char2_name, char2_twitter),  # Verse 1: char1
+        (char2_name, char2_twitter, char2_rap_style, char1_name, char1_twitter),  # Verse 2: char2
+        (char1_name, char1_twitter, char1_rap_style, char2_name, char2_twitter),  # Verse 3: char1
+        (char2_name, char2_twitter, char2_rap_style, char1_name, char1_twitter),  # Verse 4: char2
     ]
 
-    for verse_num, (rapper, rapper_tw, opponent, opponent_tw) in enumerate(verse_order, 1):
+    for verse_num, (rapper, rapper_tw, rapper_style, opponent, opponent_tw) in enumerate(verse_order, 1):
+        logging.info(f"Generating verse {verse_num}/4 for {rapper} in {rapper_style} style...")
         verse_text, status = generate_verse(
             rapper_name=rapper,
             rapper_twitter=rapper_tw,
@@ -279,6 +304,7 @@ def generate_all_verses(
             scene_description=scene_description,
             previous_verses=previous_verses,
             verse_number=verse_num,
+            rap_style=rapper_style,
             beat_style=beat_style,
             beat_bpm=beat_bpm,
             tweet_context=tweet_context,

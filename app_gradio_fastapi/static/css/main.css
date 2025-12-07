@@ -468,6 +468,20 @@ body {
     flex: 1;
 }
 
+.config-group.half .pixel-input {
+    height: 36px;
+    padding: var(--space-sm);
+}
+
+.config-group.half .input-row {
+    gap: var(--space-md);
+}
+
+.config-group.half .pixel-btn {
+    height: 36px;
+    flex: 1 1 0;
+}
+
 .pixel-label {
     font-size: 0.5rem;
     color: var(--neon-cyan);
@@ -489,11 +503,10 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 100%;
+    height: 100%;
     opacity: 0;
-    cursor: pointer;
-    z-index: 2;
+    pointer-events: none;
 }
 
 .file-upload-wrapper:hover .upload-btn {
@@ -737,7 +750,12 @@ body {
 .style-voice-row {
     display: flex;
     gap: var(--space-sm);
-    align-items: flex-end;
+    align-items: flex-start;
+}
+
+/* Remove extra gap before style-voice-row since it has its own labels */
+.config-group:has(.style-voice-row) {
+    margin-top: calc(-1 * var(--space-xs));
 }
 
 .style-col {

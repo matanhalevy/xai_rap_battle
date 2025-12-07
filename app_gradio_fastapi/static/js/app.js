@@ -398,6 +398,27 @@ async function startBattle() {
     resetProgressUI();
 
     try {
+        // Auto-generate lyrics if empty
+        const needsLyricsA = !state.fighterA.lyrics.trim();
+        const needsLyricsB = !state.fighterB.lyrics.trim();
+
+        if (needsLyricsA || needsLyricsB) {
+            elements.statusText.textContent = 'GENERATING LYRICS...';
+            elements.progressFill.style.width = '5%';
+
+            const generated = await generateLyrics();
+
+            if (needsLyricsA) {
+                state.fighterA.lyrics = generated.fighter_a_lyrics;
+                elements.lyricsA.value = generated.fighter_a_lyrics;
+            }
+            if (needsLyricsB) {
+                state.fighterB.lyrics = generated.fighter_b_lyrics;
+                elements.lyricsB.value = generated.fighter_b_lyrics;
+            }
+            saveState();
+        }
+
         // Build form data
         const formData = new FormData();
 
@@ -467,16 +488,37 @@ function validateBattleInputs() {
     if (!state.fighterB.name.trim()) {
         return { valid: false, message: 'PLAYER 2 NEEDS A NAME!' };
     }
-    if (!state.fighterA.lyrics.trim()) {
-        return { valid: false, message: 'PLAYER 1 NEEDS LYRICS!' };
-    }
-    if (!state.fighterB.lyrics.trim()) {
-        return { valid: false, message: 'PLAYER 2 NEEDS LYRICS!' };
-    }
     if (!state.battle.theme.trim()) {
         return { valid: false, message: 'SET A BATTLE THEME!' };
     }
     return { valid: true };
+}
+
+async function generateLyrics() {
+    const formData = new FormData();
+    formData.append('fighter_a_name', state.fighterA.name);
+    formData.append('fighter_b_name', state.fighterB.name);
+    formData.append('theme', state.battle.theme);
+    formData.append('fighter_a_twitter', state.fighterA.twitter);
+    formData.append('fighter_b_twitter', state.fighterB.twitter);
+    formData.append('fighter_a_description', state.fighterA.description);
+    formData.append('fighter_b_description', state.fighterB.description);
+    formData.append('fighter_a_style', state.fighterA.style);
+    formData.append('fighter_b_style', state.fighterB.style);
+    formData.append('beat_style', state.battle.beatStyle);
+    formData.append('beat_bpm', 140);
+
+    const response = await fetch('/api/lyrics/generate', {
+        method: 'POST',
+        body: formData
+    });
+
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to generate lyrics');
+    }
+
+    return await response.json();
 }
 
 // ============================================

@@ -4,8 +4,10 @@ Grok API integration for fetching X/Twitter data using x_search tool.
 Uses the xAI Responses API with server-side x_search tool for real-time tweet fetching.
 """
 
+import logging
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from dotenv import load_dotenv
@@ -200,51 +202,78 @@ def get_tweet_context_for_battle(
     """
     context_parts = []
     statuses = []
+    tweets1 = []
+    tweets2 = []
+    relationship = {"has_interaction": False}
 
-    # Fetch tweets for character 1
-    if char1_handle:
-        tweets1, status1 = fetch_recent_tweets(char1_handle, limit=5)
-        statuses.append(status1)
-        if tweets1:
-            clean_handle = char1_handle.lstrip("@")
-            context_parts.append(f"RECENT TWEETS FROM @{clean_handle}:")
-            for tweet in tweets1[:5]:
-                context_parts.append(f"  - {tweet}")
-            context_parts.append("")
+    # Run all API calls in parallel
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {}
 
-    # Fetch tweets for character 2
-    if char2_handle:
-        tweets2, status2 = fetch_recent_tweets(char2_handle, limit=5)
-        statuses.append(status2)
-        if tweets2:
-            clean_handle = char2_handle.lstrip("@")
-            context_parts.append(f"RECENT TWEETS FROM @{clean_handle}:")
-            for tweet in tweets2[:5]:
-                context_parts.append(f"  - {tweet}")
-            context_parts.append("")
+        if char1_handle:
+            logging.info(f"Submitting tweet fetch for {char1_handle}")
+            futures["tweets1"] = executor.submit(fetch_recent_tweets, char1_handle, 5)
 
-    # Analyze relationship if both handles provided
-    if char1_handle and char2_handle:
-        relationship, rel_status = analyze_opponent_relationship(
-            char1_handle, char2_handle
-        )
-        statuses.append(rel_status)
+        if char2_handle:
+            logging.info(f"Submitting tweet fetch for {char2_handle}")
+            futures["tweets2"] = executor.submit(fetch_recent_tweets, char2_handle, 5)
 
-        if relationship.get("has_interaction"):
-            context_parts.append("RELATIONSHIP BETWEEN OPPONENTS:")
-            context_parts.append(f"  Type: {relationship.get('interaction_type', 'unknown')}")
-            context_parts.append(f"  Summary: {relationship.get('summary', 'No summary')}")
+        if char1_handle and char2_handle:
+            logging.info(f"Submitting relationship analysis for {char1_handle} vs {char2_handle}")
+            futures["relationship"] = executor.submit(
+                analyze_opponent_relationship, char1_handle, char2_handle
+            )
 
-            if relationship.get("common_ground"):
-                context_parts.append(f"  Common Ground: {relationship.get('common_ground')}")
-            if relationship.get("points_of_conflict"):
-                context_parts.append(f"  Points of Conflict: {relationship.get('points_of_conflict')}")
+        # Collect results as they complete
+        for key, future in futures.items():
+            try:
+                result = future.result(timeout=60)
+                if key == "tweets1":
+                    tweets1, status1 = result
+                    statuses.append(status1)
+                    logging.info(f"Got tweets for char1: {status1}")
+                elif key == "tweets2":
+                    tweets2, status2 = result
+                    statuses.append(status2)
+                    logging.info(f"Got tweets for char2: {status2}")
+                elif key == "relationship":
+                    relationship, rel_status = result
+                    statuses.append(rel_status)
+                    logging.info(f"Got relationship: {rel_status}")
+            except Exception as e:
+                logging.error(f"Error fetching {key}: {e}")
+                statuses.append(f"Error: {e}")
 
-            notable = relationship.get("notable_exchanges", [])
-            if notable:
-                context_parts.append("  Notable Exchanges:")
-                for exchange in notable[:3]:
-                    context_parts.append(f"    - {exchange}")
+    # Build context from results
+    if tweets1:
+        clean_handle = char1_handle.lstrip("@")
+        context_parts.append(f"RECENT TWEETS FROM @{clean_handle}:")
+        for tweet in tweets1[:5]:
+            context_parts.append(f"  - {tweet}")
+        context_parts.append("")
+
+    if tweets2:
+        clean_handle = char2_handle.lstrip("@")
+        context_parts.append(f"RECENT TWEETS FROM @{clean_handle}:")
+        for tweet in tweets2[:5]:
+            context_parts.append(f"  - {tweet}")
+        context_parts.append("")
+
+    if relationship.get("has_interaction"):
+        context_parts.append("RELATIONSHIP BETWEEN OPPONENTS:")
+        context_parts.append(f"  Type: {relationship.get('interaction_type', 'unknown')}")
+        context_parts.append(f"  Summary: {relationship.get('summary', 'No summary')}")
+
+        if relationship.get("common_ground"):
+            context_parts.append(f"  Common Ground: {relationship.get('common_ground')}")
+        if relationship.get("points_of_conflict"):
+            context_parts.append(f"  Points of Conflict: {relationship.get('points_of_conflict')}")
+
+        notable = relationship.get("notable_exchanges", [])
+        if notable:
+            context_parts.append("  Notable Exchanges:")
+            for exchange in notable[:3]:
+                context_parts.append(f"    - {exchange}")
 
     context = "\n".join(context_parts) if context_parts else ""
     status = " | ".join(statuses) if statuses else "No handles provided"
