@@ -117,8 +117,10 @@ async def start_battle(
     time_period: Annotated[str, Form()] = "present day",
     fighter_a_image: Annotated[UploadFile | None, File()] = None,
     fighter_a_voice: Annotated[UploadFile | None, File()] = None,
+    fighter_a_voice_recorded: Annotated[str, Form()] = "false",
     fighter_b_image: Annotated[UploadFile | None, File()] = None,
     fighter_b_voice: Annotated[UploadFile | None, File()] = None,
+    fighter_b_voice_recorded: Annotated[str, Form()] = "false",
 ):
     """Start a new rap battle and return the battle ID."""
     try:
@@ -162,6 +164,8 @@ async def start_battle(
             fighter_b_voice_path=fighter_b_voice_path,
             fighter_a_twitter=fighter_a_twitter or None,
             fighter_b_twitter=fighter_b_twitter or None,
+            fighter_a_voice_recorded=fighter_a_voice_recorded.lower() == "true",
+            fighter_b_voice_recorded=fighter_b_voice_recorded.lower() == "true",
         )
 
         # Start battle
@@ -202,7 +206,7 @@ async def get_battle_result(battle_id: str):
     return {
         "battle_id": battle_id,
         "status": state.stage.value,
-        "video_url": state.video_url,
+        "audio_url": state.audio_url,
         "error": state.error
     }
 

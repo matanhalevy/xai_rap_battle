@@ -110,7 +110,10 @@
 
                     <div class="config-group">
                         <label class="pixel-label">RAP LYRICS (LEAVE EMPTY TO AUTO-GENERATE)</label>
-                        <textarea id="lyrics-a" class="pixel-textarea lyrics" rows="6" placeholder="Leave empty to auto-generate from X profile..."></textarea>
+                        <div class="lyrics-container">
+                            <textarea id="lyrics-a" class="pixel-textarea lyrics" rows="6" placeholder="Leave empty to auto-generate from X profile..."></textarea>
+                            <button type="button" class="ai-write-btn" onclick="openAiRapModal('A')">AI</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -127,35 +130,6 @@
 
                 <!-- Shared Battle Config -->
                 <div class="battle-config">
-                    <div class="config-group">
-                        <label class="pixel-label center">VIDEO STYLE</label>
-                        <div class="pixel-dropdown" id="dropdown-video-style" data-value="Photorealistic">
-                            <div class="pixel-dropdown-selected">
-                                <span class="pixel-dropdown-text">PHOTOREALISTIC</span>
-                                <span class="pixel-dropdown-arrow">▼</span>
-                            </div>
-                            <div class="pixel-dropdown-options">
-                                <div class="pixel-dropdown-option selected" data-value="Photorealistic">PHOTOREALISTIC</div>
-                                <div class="pixel-dropdown-option" data-value="Pixar/3D Animation">PIXAR/3D</div>
-                                <div class="pixel-dropdown-option" data-value="Anime">ANIME</div>
-                                <div class="pixel-dropdown-option" data-value="8-bit Pixel Art">8-BIT PIXEL</div>
-                                <div class="pixel-dropdown-option" data-value="Comic Book/Graphic Novel">COMIC BOOK</div>
-                                <div class="pixel-dropdown-option" data-value="Oil Painting">OIL PAINTING</div>
-                                <div class="pixel-dropdown-option" data-value="Noir/Black & White">NOIR B&W</div>
-                                <div class="pixel-dropdown-option" data-value="Neon Synthwave">SYNTHWAVE</div>
-                                <div class="pixel-dropdown-option" data-value="Claymation">CLAYMATION</div>
-                            </div>
-                        </div>
-                        <select id="video-style" style="display:none;">
-                            <option value="Photorealistic" selected>PHOTOREALISTIC</option>
-                        </select>
-                    </div>
-
-                    <div class="config-group">
-                        <label class="pixel-label center">LOCATION</label>
-                        <input type="text" id="location" class="pixel-input" placeholder="underground hip-hop club">
-                    </div>
-
                     <div class="config-group">
                         <label class="pixel-label center">BEAT STYLE</label>
                         <div class="pixel-dropdown" id="dropdown-beat-style" data-value="trap">
@@ -282,7 +256,10 @@
 
                     <div class="config-group">
                         <label class="pixel-label">RAP LYRICS (LEAVE EMPTY TO AUTO-GENERATE)</label>
-                        <textarea id="lyrics-b" class="pixel-textarea lyrics" rows="6" placeholder="Leave empty to auto-generate from X profile..."></textarea>
+                        <div class="lyrics-container">
+                            <textarea id="lyrics-b" class="pixel-textarea lyrics" rows="6" placeholder="Leave empty to auto-generate from X profile..."></textarea>
+                            <button type="button" class="ai-write-btn" onclick="openAiRapModal('B')">AI</button>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -341,24 +318,14 @@
                         <span class="stage-label">MIX</span>
                         <span class="stage-status"></span>
                     </div>
-                    <div class="stage" data-stage="storyboard" id="stage-storyboard">
+                    <div class="stage" data-stage="talkhead" id="stage-talkhead">
                         <span class="stage-icon">07</span>
-                        <span class="stage-label">IMAGES</span>
+                        <span class="stage-label">RUNWAY</span>
                         <span class="stage-status"></span>
                     </div>
-                    <div class="stage" data-stage="video" id="stage-video">
+                    <div class="stage" data-stage="lipsync_heads" id="stage-lipsync_heads">
                         <span class="stage-icon">08</span>
-                        <span class="stage-label">VIDEO</span>
-                        <span class="stage-status"></span>
-                    </div>
-                    <div class="stage" data-stage="lipsync" id="stage-lipsync">
-                        <span class="stage-icon">09</span>
                         <span class="stage-label">LIPSYNC</span>
-                        <span class="stage-status"></span>
-                    </div>
-                    <div class="stage" data-stage="compose" id="stage-compose">
-                        <span class="stage-icon">10</span>
-                        <span class="stage-label">COMPOSE</span>
                         <span class="stage-status"></span>
                     </div>
                 </div>
@@ -443,6 +410,78 @@
                     <span class="score-label">YOUR SCORE:</span>
                     <span class="score-value" id="score-value">999999</span>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Battle Arena Modal (Audio-Only Mode) -->
+    <div id="battle-arena-modal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content battle-arena-content">
+            <div class="battle-arena-stage">
+                <!-- VS Logo at Top -->
+                <div class="arena-top">
+                    <div class="arena-vs">VS</div>
+                </div>
+
+                <!-- Main Battle Area -->
+                <div class="arena-main">
+                    <!-- Fighter A (Left) -->
+                    <div class="arena-fighter arena-fighter-a" id="arena-fighter-a">
+                        <div class="arena-name" id="arena-name-a">FIGHTER A</div>
+                        <div class="fire-frame">
+                            <div class="fire-glow"></div>
+                            <video id="arena-video-a" class="arena-portrait-video" muted playsinline loop></video>
+                            <img id="arena-portrait-a" src="" alt="Fighter A">
+                        </div>
+                    </div>
+
+                    <!-- Center Speech Bubbles -->
+                    <div class="arena-lyrics-center">
+                        <div class="speech-bubble speech-bubble-left" id="bubble-a">
+                            <div class="bubble-content"></div>
+                        </div>
+                        <div class="speech-bubble speech-bubble-right" id="bubble-b">
+                            <div class="bubble-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- Fighter B (Right) -->
+                    <div class="arena-fighter arena-fighter-b" id="arena-fighter-b">
+                        <div class="arena-name" id="arena-name-b">FIGHTER B</div>
+                        <div class="fire-frame">
+                            <div class="fire-glow"></div>
+                            <video id="arena-video-b" class="arena-portrait-video" muted playsinline loop></video>
+                            <img id="arena-portrait-b" src="" alt="Fighter B">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Waveform at Bottom -->
+                <div class="arena-bottom">
+                    <div class="waveform-container" id="waveform-container">
+                        <!-- 100 bars generated by JS -->
+                    </div>
+                    <audio id="battle-audio" preload="auto"></audio>
+                    <div class="arena-controls">
+                        <button type="button" class="pixel-btn play-btn" id="arena-play-btn">PLAY</button>
+                    </div>
+                </div>
+
+                <!-- WHO WINS Overlay -->
+                <div id="who-wins-overlay" class="who-wins-overlay">
+                    <h1 class="who-wins-text" data-text="WHO WINS?!">WHO WINS?!</h1>
+                </div>
+            </div>
+
+            <!-- Arena Footer -->
+            <div class="arena-footer">
+                <a id="arena-download-btn" class="pixel-btn download-btn" href="#" download>
+                    DOWNLOAD
+                </a>
+                <button type="button" id="arena-rematch-btn" class="pixel-btn new-battle-btn">
+                    REMATCH
+                </button>
             </div>
         </div>
     </div>
@@ -533,6 +572,31 @@
                         DONE - USE THIS VOICE
                     </button>
                     <button type="button" class="pixel-btn cancel-btn" onclick="closeVoiceRecording()">
+                        CANCEL
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Write Rap Modal -->
+    <div id="ai-rap-modal" class="modal">
+        <div class="modal-backdrop" onclick="closeAiRapModal()"></div>
+        <div class="modal-content ai-rap-content">
+            <div class="modal-frame">
+                <h2 class="modal-title">AI WRITE RAP</h2>
+                <p class="ai-rap-instructions">Enter topics or themes for the AI to write about:</p>
+
+                <div class="config-group">
+                    <label class="pixel-label">TOPICS / THEMES</label>
+                    <textarea id="ai-rap-topic" class="pixel-textarea" rows="3" placeholder="tech billionaires, space exploration, twitter beef..."></textarea>
+                </div>
+
+                <div class="ai-rap-actions">
+                    <button type="button" class="pixel-btn generate-btn" id="ai-rap-generate-btn" onclick="generateAiRap()">
+                        GENERATE
+                    </button>
+                    <button type="button" class="pixel-btn cancel-btn" onclick="closeAiRapModal()">
                         CANCEL
                     </button>
                 </div>

@@ -10,3 +10,5 @@ moviepy
 jinja2
 python-multipart
 librosa
+forcealign>=1.1.9
+numpy

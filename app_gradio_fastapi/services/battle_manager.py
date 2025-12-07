@@ -14,30 +14,27 @@ from app_gradio_fastapi.services.voice_api import generate_rap_voice
 from app_gradio_fastapi.services.beat_api import generate_beat_pattern
 from app_gradio_fastapi.services.beat_generator import get_generator
 from app_gradio_fastapi.services.bpm_detector import detect_bpm_from_multiple, snap_bpm_to_common
-from app_gradio_fastapi.services.audio_mixer import mix_rap_and_beat
-from app_gradio_fastapi.services.grok_image_api import generate_storyboard_image
+from app_gradio_fastapi.services.audio_mixer import mix_rap_and_beat, generate_waveform_data
+from app_gradio_fastapi.services.lyric_aligner import align_battle_verses
 from app_gradio_fastapi.services.runway_api import generate_video_from_image
-from app_gradio_fastapi.services.sync_labs_api import lipsync_video
-from app_gradio_fastapi.services.video_composer import compose_with_audio_clips
+from app_gradio_fastapi.services.sync_labs_api import lipsync_video, upload_to_temp_host
 from app_gradio_fastapi.config.style_presets import get_preset_path, get_style_instructions
 from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
 
 
 class BattleStage(str, Enum):
-    """Pipeline stages for full battle generation."""
+    """Pipeline stages for battle generation."""
     QUEUED = "queued"
     PARSING = "parsing"
-    STYLE_REF_A = "style_ref_a"  # Create style reference for Fighter A (ElevenLabs)
-    STYLE_REF_B = "style_ref_b"  # Create style reference for Fighter B (ElevenLabs)
+    STYLE_REF_A = "style_ref_a"
+    STYLE_REF_B = "style_ref_b"
     VOICE_A = "voice_a"
     VOICE_B = "voice_b"
     BPM_DETECT = "bpm_detect"
     BEAT_GEN = "beat_gen"
     MIXING = "mixing"
-    STORYBOARD = "storyboard"
-    VIDEO = "video"
-    LIPSYNC = "lipsync"
-    COMPOSE = "compose"
+    TALKHEAD = "talkhead"        # Generate base videos (Runway) - parallel
+    LIPSYNC_HEADS = "lipsync_heads"  # Apply lip sync (Sync Labs) - parallel
     COMPLETE = "complete"
     FAILED = "failed"
 
@@ -71,6 +68,8 @@ class BattleConfig:
     fighter_b_voice_path: str | None = None
     fighter_a_twitter: str | None = None
     fighter_b_twitter: str | None = None
+    fighter_a_voice_recorded: bool = False  # True if recorded via REC, False if uploaded
+    fighter_b_voice_recorded: bool = False  # True if recorded via REC, False if uploaded
 
 
 @dataclass
@@ -82,7 +81,6 @@ class BattleState:
     progress: float = 0.0
     message: str = "Battle queued"
     audio_url: str | None = None
-    video_url: str | None = None
     error: str | None = None
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -91,9 +89,12 @@ class BattleState:
     detected_bpm: float | None = None
     beat_path: str | None = None
     mixed_audio_path: str | None = None
-    storyboard_images: list[str] = field(default_factory=list)
-    video_segments: list[str] = field(default_factory=list)
-    lipsynced_videos: list[str] = field(default_factory=list)
+
+    # Battle arena data
+    timing_data: dict | None = None
+    waveform: list[float] = field(default_factory=list)
+    talking_head_a: str | None = None
+    talking_head_b: str | None = None
 
 
 class BattleManager:
@@ -160,7 +161,7 @@ class BattleManager:
     @classmethod
     def _state_to_dict(cls, state: BattleState) -> dict[str, Any]:
         """Convert state to dictionary for JSON serialization."""
-        return {
+        result = {
             'battle_id': state.battle_id,
             'stage': state.stage.value,
             'progress': state.progress,
@@ -168,10 +169,19 @@ class BattleManager:
             'status': 'complete' if state.stage == BattleStage.COMPLETE else
                       'failed' if state.stage == BattleStage.FAILED else 'in_progress',
             'audio_url': state.audio_url,
-            'video_url': state.video_url,
             'detected_bpm': state.detected_bpm,
             'error': state.error
         }
+        # Include arena data for audio-only battles
+        if state.timing_data:
+            result['timing_data'] = state.timing_data
+        if state.waveform:
+            result['waveform'] = state.waveform
+        if state.talking_head_a:
+            result['talking_head_a_url'] = f"/outputs/{Path(state.talking_head_a).name}"
+        if state.talking_head_b:
+            result['talking_head_b_url'] = f"/outputs/{Path(state.talking_head_b).name}"
+        return result
 
     @classmethod
     async def _emit_update(cls, battle_id: str, **kwargs):
@@ -191,8 +201,6 @@ class BattleManager:
             state.message = kwargs['message']
         if 'audio_url' in kwargs:
             state.audio_url = kwargs['audio_url']
-        if 'video_url' in kwargs:
-            state.video_url = kwargs['video_url']
         if 'detected_bpm' in kwargs:
             state.detected_bpm = kwargs['detected_bpm']
         if 'error' in kwargs:
@@ -239,12 +247,14 @@ class BattleManager:
             if voice_identity_a and style_source_a:
                 # Combine voice identity + style via ElevenLabs speech-to-speech
                 # celebrity_mode=True pitch shifts to evade voice detection, then reverses after
+                # BUT: disable celebrity_mode if user recorded their own voice (not a celebrity)
+                use_celebrity_mode_a = not config.fighter_a_voice_recorded
                 style_ref_a, voice_id_a, status_a = await asyncio.to_thread(
                     create_style_reference,
                     voice_identity_file=voice_identity_a,
                     style_source_file=style_source_a,
                     reference_name=f"{config.fighter_a_name}_style",
-                    celebrity_mode=True,
+                    celebrity_mode=use_celebrity_mode_a,
                     stability=0.5,
                     similarity_boost=0.85,
                 )
@@ -275,12 +285,14 @@ class BattleManager:
             if voice_identity_b and style_source_b:
                 # Combine voice identity + style via ElevenLabs speech-to-speech
                 # celebrity_mode=True pitch shifts to evade voice detection, then reverses after
+                # BUT: disable celebrity_mode if user recorded their own voice (not a celebrity)
+                use_celebrity_mode_b = not config.fighter_b_voice_recorded
                 style_ref_b, voice_id_b, status_b = await asyncio.to_thread(
                     create_style_reference,
                     voice_identity_file=voice_identity_b,
                     style_source_file=style_source_b,
                     reference_name=f"{config.fighter_b_name}_style",
-                    celebrity_mode=True,
+                    celebrity_mode=use_celebrity_mode_b,
                     stability=0.5,
                     similarity_boost=0.85,
                 )
@@ -429,161 +441,156 @@ class BattleManager:
                 audio_url=audio_url
             )
 
-            # If audio_only mode, skip video pipeline and complete
+            # If audio_only mode, generate arena data and complete
             if config.audio_only:
+                # === STAGE: TALKHEAD (Runway) - Generate base videos in PARALLEL ===
+                base_video_a = None
+                base_video_b = None
+
+                if config.fighter_a_image_path or config.fighter_b_image_path:
+                    await cls._emit_update(
+                        battle_id,
+                        stage=BattleStage.TALKHEAD,
+                        progress=52.0,
+                        message="Generating talking head videos (Runway)..."
+                    )
+
+                    # Run both Runway video generations in parallel
+                    async def gen_video_a():
+                        if config.fighter_a_image_path:
+                            return await asyncio.to_thread(
+                                generate_video_from_image,
+                                image_path=config.fighter_a_image_path,
+                                prompt_text="person rapping, subtle head movement, looking at camera, hip hop energy",
+                                duration=5
+                            )
+                        return None, "No image"
+
+                    async def gen_video_b():
+                        if config.fighter_b_image_path:
+                            return await asyncio.to_thread(
+                                generate_video_from_image,
+                                image_path=config.fighter_b_image_path,
+                                prompt_text="person rapping, subtle head movement, looking at camera, hip hop energy",
+                                duration=5
+                            )
+                        return None, "No image"
+
+                    results = await asyncio.gather(gen_video_a(), gen_video_b())
+                    base_video_a, vid_status_a = results[0] if results[0] else (None, "No image")
+                    base_video_b, vid_status_b = results[1] if results[1] else (None, "No image")
+
+                    if base_video_a:
+                        logging.info(f"Runway video A generated: {base_video_a}")
+                    else:
+                        logging.warning(f"Runway video A failed: {vid_status_a}")
+
+                    if base_video_b:
+                        logging.info(f"Runway video B generated: {base_video_b}")
+                    else:
+                        logging.warning(f"Runway video B failed: {vid_status_b}")
+
+                # === STAGE: LIPSYNC_HEADS (Sync Labs) - Apply lip sync in PARALLEL ===
+                if base_video_a or base_video_b:
+                    await cls._emit_update(
+                        battle_id,
+                        stage=BattleStage.LIPSYNC_HEADS,
+                        progress=65.0,
+                        message="Applying lip sync (Sync Labs)..."
+                    )
+
+                    async def lipsync_a():
+                        if not base_video_a:
+                            return None, "No base video"
+                        # Upload to temp host
+                        video_url, _ = await asyncio.to_thread(upload_to_temp_host, base_video_a)
+                        audio_url, _ = await asyncio.to_thread(upload_to_temp_host, audio_a)
+                        if not video_url or not audio_url:
+                            return None, "Upload failed"
+                        # Lip sync
+                        output_path = str(output_dir / f"talkhead_a_{battle_id[:8]}.mp4")
+                        return await asyncio.to_thread(
+                            lipsync_video,
+                            video_path=video_url,
+                            audio_path=audio_url,
+                            output_path=Path(output_path),
+                            model="lipsync-2",
+                            sync_mode="loop"
+                        )
+
+                    async def lipsync_b():
+                        if not base_video_b:
+                            return None, "No base video"
+                        # Upload to temp host
+                        video_url, _ = await asyncio.to_thread(upload_to_temp_host, base_video_b)
+                        audio_url, _ = await asyncio.to_thread(upload_to_temp_host, audio_b)
+                        if not video_url or not audio_url:
+                            return None, "Upload failed"
+                        # Lip sync
+                        output_path = str(output_dir / f"talkhead_b_{battle_id[:8]}.mp4")
+                        return await asyncio.to_thread(
+                            lipsync_video,
+                            video_path=video_url,
+                            audio_path=audio_url,
+                            output_path=Path(output_path),
+                            model="lipsync-2",
+                            sync_mode="loop"
+                        )
+
+                    sync_results = await asyncio.gather(lipsync_a(), lipsync_b())
+                    talking_head_a, sync_status_a = sync_results[0] if sync_results[0] else (None, "Skipped")
+                    talking_head_b, sync_status_b = sync_results[1] if sync_results[1] else (None, "Skipped")
+
+                    if talking_head_a:
+                        state.talking_head_a = talking_head_a
+                        logging.info(f"Talking head A complete: {talking_head_a}")
+                    else:
+                        logging.warning(f"Lip sync A failed: {sync_status_a}")
+
+                    if talking_head_b:
+                        state.talking_head_b = talking_head_b
+                        logging.info(f"Talking head B complete: {talking_head_b}")
+                    else:
+                        logging.warning(f"Lip sync B failed: {sync_status_b}")
+
+                await cls._emit_update(
+                    battle_id,
+                    progress=80.0,
+                    message="Generating battle arena data..."
+                )
+
+                # Generate waveform visualization data
+                waveform_data = await asyncio.to_thread(
+                    generate_waveform_data,
+                    mixed_audio,
+                    100  # 100 bars for visualization
+                )
+                state.waveform = waveform_data
+
+                await cls._emit_update(
+                    battle_id,
+                    progress=90.0,
+                    message="Aligning lyrics to audio..."
+                )
+
+                # Align lyrics to audio for synchronized display
+                verses = [config.fighter_a_lyrics, config.fighter_b_lyrics]
+                timing_data = await asyncio.to_thread(
+                    align_battle_verses,
+                    audio_clips=state.audio_clips,
+                    verses=verses,
+                    fighter_order=["A", "B"]
+                )
+                state.timing_data = timing_data
+
                 await cls._emit_update(
                     battle_id,
                     stage=BattleStage.COMPLETE,
                     progress=100.0,
-                    message="Battle complete! (Audio only)",
+                    message="Battle complete!",
                     audio_url=audio_url
                 )
                 return
-
-            # ============== VIDEO PIPELINE ==============
-
-            # Stage 7: Generate storyboard images
-            await cls._emit_update(
-                battle_id,
-                stage=BattleStage.STORYBOARD,
-                progress=52.0,
-                message="Generating storyboard images..."
-            )
-
-            # Generate images for each fighter (use uploaded images or generate)
-            storyboard_images = []
-
-            # Fighter A image
-            if config.fighter_a_image_path:
-                storyboard_images.append(config.fighter_a_image_path)
-            else:
-                img_a, img_status = await asyncio.to_thread(
-                    generate_storyboard_image,
-                    prompt=f"{config.fighter_a_description or config.fighter_a_name}, rapper, {config.theme} theme, dramatic lighting",
-                    speaker="A"
-                )
-                if img_a:
-                    storyboard_images.append(img_a)
-                else:
-                    raise Exception(f"Failed to generate image for {config.fighter_a_name}: {img_status}")
-
-            await cls._emit_update(
-                battle_id,
-                progress=58.0,
-                message=f"{config.fighter_a_name} image ready"
-            )
-
-            # Fighter B image
-            if config.fighter_b_image_path:
-                storyboard_images.append(config.fighter_b_image_path)
-            else:
-                img_b, img_status = await asyncio.to_thread(
-                    generate_storyboard_image,
-                    prompt=f"{config.fighter_b_description or config.fighter_b_name}, rapper, {config.theme} theme, dramatic lighting",
-                    speaker="B"
-                )
-                if img_b:
-                    storyboard_images.append(img_b)
-                else:
-                    raise Exception(f"Failed to generate image for {config.fighter_b_name}: {img_status}")
-
-            state.storyboard_images = storyboard_images
-
-            await cls._emit_update(
-                battle_id,
-                progress=64.0,
-                message=f"{config.fighter_b_name} image ready"
-            )
-
-            # Stage 8: Generate videos from images (Runway)
-            await cls._emit_update(
-                battle_id,
-                stage=BattleStage.VIDEO,
-                progress=66.0,
-                message="Generating videos from images..."
-            )
-
-            video_segments = []
-            for i, img_path in enumerate(storyboard_images):
-                fighter_name = config.fighter_a_name if i == 0 else config.fighter_b_name
-                await cls._emit_update(
-                    battle_id,
-                    progress=66.0 + (i * 6),
-                    message=f"Generating video for {fighter_name}..."
-                )
-
-                video_path, vid_status = await asyncio.to_thread(
-                    generate_video_from_image,
-                    image_path=img_path,
-                    prompt=f"Rapper performing, head bobbing to beat, {config.theme} atmosphere, cinematic"
-                )
-
-                if video_path:
-                    video_segments.append(video_path)
-                else:
-                    logging.warning(f"Video generation failed for {fighter_name}: {vid_status}")
-                    # Use image as fallback (will need to convert to video)
-                    video_segments.append(img_path)
-
-            state.video_segments = video_segments
-
-            await cls._emit_update(
-                battle_id,
-                progress=78.0,
-                message="Video segments generated"
-            )
-
-            # Stage 9: Lip sync (optional - skip for now to save time/credits)
-            await cls._emit_update(
-                battle_id,
-                stage=BattleStage.LIPSYNC,
-                progress=80.0,
-                message="Processing lip sync..."
-            )
-
-            # For now, skip actual lip sync and use video segments directly
-            # TODO: Enable lip sync with Sync Labs when needed
-            state.lipsynced_videos = video_segments
-
-            await cls._emit_update(
-                battle_id,
-                progress=85.0,
-                message="Lip sync complete"
-            )
-
-            # Stage 10: Compose final video
-            await cls._emit_update(
-                battle_id,
-                stage=BattleStage.COMPOSE,
-                progress=88.0,
-                message="Composing final video..."
-            )
-
-            video_filename = f"battle_{battle_id[:8]}.mp4"
-            video_output_path = output_dir / video_filename
-
-            final_video, compose_status = await asyncio.to_thread(
-                compose_with_audio_clips,
-                video_paths=state.lipsynced_videos,
-                audio_clips=state.audio_clips,
-                beat_path=beat_path,
-                output_path=video_output_path,
-                beat_volume=0.3  # 30% beat volume in video (rap at full)
-            )
-
-            if not final_video:
-                raise Exception(f"Failed to compose video: {compose_status}")
-
-            video_url = f"/outputs/{video_filename}"
-
-            # Complete
-            await cls._emit_update(
-                battle_id,
-                stage=BattleStage.COMPLETE,
-                progress=100.0,
-                message="Battle complete!",
-                video_url=video_url
-            )
 
         except Exception as e:
             logging.error(f"Battle {battle_id} failed: {e}")

@@ -4,6 +4,7 @@ import logging
 import tempfile
 from pathlib import Path
 
+import numpy as np
 from pydub import AudioSegment
 
 
@@ -146,3 +147,55 @@ def get_audio_duration_ms(audio_path: str) -> int:
     """Get duration of audio file in milliseconds."""
     audio = AudioSegment.from_file(audio_path)
     return len(audio)
+
+
+def generate_waveform_data(
+    audio_path: str,
+    num_bars: int = 100,
+) -> list[float]:
+    """
+    Generate waveform amplitude data for visualization.
+
+    Args:
+        audio_path: Path to audio file
+        num_bars: Number of bars/segments to generate
+
+    Returns:
+        List of amplitude values (0.0 to 1.0) for each bar
+    """
+    logging.info(f"Generating waveform data: {audio_path}")
+
+    audio = AudioSegment.from_file(audio_path)
+
+    # Convert to mono for simplicity
+    if audio.channels > 1:
+        audio = audio.set_channels(1)
+
+    # Get raw samples as numpy array
+    samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
+
+    if len(samples) == 0:
+        return [0.0] * num_bars
+
+    # Chunk into num_bars segments
+    chunk_size = max(1, len(samples) // num_bars)
+    amplitudes = []
+
+    for i in range(num_bars):
+        start = i * chunk_size
+        end = min(start + chunk_size, len(samples))
+        chunk = samples[start:end]
+
+        if len(chunk) > 0:
+            # Calculate RMS (root mean square) amplitude
+            rms = np.sqrt(np.mean(chunk ** 2))
+            # Normalize to 0-1 range (assuming 16-bit audio, max ~32768)
+            normalized = min(1.0, float(rms) / 32768.0)
+            # Apply some scaling to make visualization more dynamic
+            scaled = min(1.0, normalized * 3.0)  # Boost quiet sections
+            amplitudes.append(round(scaled, 3))
+        else:
+            amplitudes.append(0.0)
+
+    logging.info(f"Generated {len(amplitudes)} waveform bars")
+    return amplitudes

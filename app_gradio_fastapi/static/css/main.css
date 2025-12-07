@@ -2066,6 +2066,68 @@ body {
 }
 
 /* ============================================
+   LYRICS CONTAINER + AI BUTTON
+   ============================================ */
+.lyrics-container {
+    position: relative;
+}
+
+.ai-write-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.4rem;
+    background: var(--bg-cabinet);
+    color: var(--neon-cyan);
+    border: 2px solid var(--neon-cyan);
+    cursor: pointer;
+    transition: all 0.2s;
+    z-index: 5;
+}
+
+.ai-write-btn:hover {
+    background: var(--neon-cyan);
+    color: var(--bg-dark);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+/* AI Rap Modal */
+.ai-rap-content {
+    max-width: 400px;
+}
+
+.ai-rap-instructions {
+    font-size: 0.5rem;
+    color: var(--text-dim);
+    margin-bottom: var(--space-md);
+    text-align: center;
+}
+
+.ai-rap-actions {
+    display: flex;
+    gap: var(--space-md);
+    justify-content: center;
+    margin-top: var(--space-md);
+}
+
+.ai-rap-actions .generate-btn {
+    background: var(--neon-green);
+    color: var(--bg-dark);
+    border-color: var(--neon-green);
+}
+
+.ai-rap-actions .generate-btn:hover {
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+}
+
+.ai-rap-actions .generate-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================
    UTILITY CLASSES
    ============================================ */
 .hidden {
@@ -2090,4 +2152,396 @@ body {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
     border: 0;
+}
+
+/* ============================================
+   BATTLE ARENA (AUDIO-ONLY MODE)
+   ============================================ */
+
+.battle-arena-content {
+    width: 100%;
+    max-width: 1200px;
+    height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-dark);
+    border: 4px solid var(--neon-cyan);
+    box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+}
+
+.battle-arena-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-lg);
+    position: relative;
+    overflow: hidden;
+}
+
+/* Top Section - VS Logo */
+.arena-top {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--space-md) 0;
+}
+
+/* Main Battle Area - Portraits and Lyrics */
+.arena-main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr 1fr;
+    gap: var(--space-md);
+    align-items: center;
+    padding: var(--space-md) 0;
+}
+
+/* Center Lyrics Area */
+.arena-lyrics-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-lg);
+    min-height: 200px;
+}
+
+/* Bottom Section - Waveform */
+.arena-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-md) 0;
+}
+
+/* Fighter Panels */
+.arena-fighter {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.arena-fighter.inactive {
+    opacity: 0.4;
+}
+
+.arena-fighter.inactive .fire-glow {
+    opacity: 0.1;
+    background: #333;
+}
+
+.arena-fighter.inactive img {
+    filter: grayscale(100%) brightness(0.5);
+}
+
+.arena-name {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.9rem;
+    color: var(--neon-yellow);
+    text-shadow: 0 0 10px var(--neon-orange);
+    margin-bottom: var(--space-sm);
+    text-transform: uppercase;
+}
+
+/* Fire Frame for Portraits */
+.fire-frame {
+    position: relative;
+    width: 220px;
+    height: 220px;
+}
+
+.fire-glow {
+    position: absolute;
+    inset: -25px;
+    background: radial-gradient(circle,
+        var(--neon-orange) 0%,
+        var(--neon-yellow) 30%,
+        rgba(255, 136, 0, 0.5) 60%,
+        transparent 70%
+    );
+    filter: blur(20px);
+    animation: fireGlow 0.2s infinite alternate;
+    border-radius: 50%;
+    z-index: 0;
+}
+
+@keyframes fireGlow {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1.1);
+        opacity: 1;
+    }
+}
+
+.fire-frame img {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 4px solid var(--neon-orange);
+    box-shadow:
+        0 0 20px var(--neon-orange),
+        inset 0 0 20px rgba(0, 0, 0, 0.5);
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+.arena-fighter-a .fire-frame img {
+    border-color: var(--player1-primary);
+}
+
+.arena-fighter-b .fire-frame img {
+    border-color: var(--player2-primary);
+}
+
+/* Talking Head Videos (Lip-synced) */
+.arena-portrait-video {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 4px solid var(--neon-orange);
+    box-shadow:
+        0 0 20px var(--neon-orange),
+        inset 0 0 20px rgba(0, 0, 0, 0.5);
+    z-index: 2;
+    display: none;
+}
+
+.arena-portrait-video.active {
+    display: block;
+}
+
+.arena-fighter-a .arena-portrait-video {
+    border-color: var(--player1-primary);
+    box-shadow: 0 0 20px var(--player1-primary), inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.arena-fighter-b .arena-portrait-video {
+    border-color: var(--player2-primary);
+    box-shadow: 0 0 20px var(--player2-primary), inset 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Speech Bubbles */
+.speech-bubble {
+    position: relative;
+    background: var(--bg-cabinet);
+    border: 3px solid var(--neon-cyan);
+    border-radius: 8px;
+    padding: var(--space-md) var(--space-lg);
+    width: 100%;
+    max-width: 400px;
+    min-height: 60px;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.speech-bubble.active {
+    opacity: 1;
+    transform: scale(1);
+    display: block;
+}
+
+.speech-bubble .bubble-content {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.75rem;
+    line-height: 1.8;
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.speech-bubble-left {
+    border-color: var(--player1-primary);
+    box-shadow: 0 0 15px rgba(255, 51, 51, 0.3);
+}
+
+.speech-bubble-right {
+    border-color: var(--player2-primary);
+    box-shadow: 0 0 15px rgba(51, 153, 255, 0.3);
+}
+
+/* VS Logo */
+.arena-vs {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 2.5rem;
+    color: var(--neon-yellow);
+    text-shadow:
+        0 0 20px var(--neon-orange),
+        0 0 40px var(--neon-yellow),
+        0 0 60px var(--neon-orange);
+    animation: vsPulse 1s infinite alternate;
+}
+
+@keyframes vsPulse {
+    0% { transform: scale(1); }
+    100% { transform: scale(1.1); }
+}
+
+/* Waveform Visualization */
+.waveform-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 250px;
+    width: 100%;
+    max-width: 800px;
+    padding: var(--space-md);
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid var(--border-pixel);
+    border-radius: 4px;
+}
+
+.waveform-bar {
+    width: 3px;
+    min-height: 4px;
+    background: linear-gradient(to top,
+        var(--neon-cyan) 0%,
+        var(--neon-pink) 50%,
+        var(--neon-yellow) 100%
+    );
+    border-radius: 2px;
+    transition: height 0.05s ease, opacity 0.1s ease;
+    opacity: 0.4;
+}
+
+.waveform-bar.played {
+    opacity: 1;
+    box-shadow: 0 0 8px var(--neon-cyan);
+}
+
+.waveform-bar.current {
+    opacity: 1;
+    background: var(--neon-yellow);
+    box-shadow: 0 0 12px var(--neon-yellow);
+    transform: scaleY(1.1);
+}
+
+.arena-controls {
+    display: flex;
+    gap: var(--space-md);
+}
+
+.arena-controls .play-btn {
+    font-size: 0.8rem;
+    padding: var(--space-sm) var(--space-lg);
+}
+
+/* WHO WINS Overlay */
+.who-wins-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 100;
+    animation: whoWinsFadeIn 0.5s ease;
+}
+
+.who-wins-overlay.active {
+    display: flex;
+}
+
+@keyframes whoWinsFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.who-wins-text {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 3rem;
+    color: var(--neon-yellow);
+    text-shadow:
+        0 0 20px var(--neon-orange),
+        0 0 40px var(--neon-yellow),
+        0 0 60px var(--neon-orange),
+        0 0 80px var(--neon-pink);
+    animation: whoWinsPulse 0.5s infinite alternate;
+    text-align: center;
+}
+
+@keyframes whoWinsPulse {
+    0% {
+        transform: scale(1);
+        text-shadow:
+            0 0 20px var(--neon-orange),
+            0 0 40px var(--neon-yellow),
+            0 0 60px var(--neon-orange);
+    }
+    100% {
+        transform: scale(1.05);
+        text-shadow:
+            0 0 30px var(--neon-orange),
+            0 0 60px var(--neon-yellow),
+            0 0 90px var(--neon-orange),
+            0 0 120px var(--neon-pink);
+    }
+}
+
+/* Arena Footer */
+.arena-footer {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-lg);
+    padding: var(--space-lg);
+    border-top: 2px solid var(--border-pixel);
+    background: var(--bg-cabinet);
+}
+
+/* Mobile Responsive */
+@media (max-width: 900px) {
+    .arena-main {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto auto;
+    }
+
+    .arena-lyrics-center {
+        grid-column: 1 / -1;
+        order: 3;
+    }
+
+    .fire-frame {
+        width: 140px;
+        height: 140px;
+    }
+
+    .arena-vs {
+        font-size: 1.5rem;
+    }
+
+    .who-wins-text {
+        font-size: 1.5rem;
+    }
+
+    .waveform-container {
+        height: 150px;
+    }
+
+    .waveform-bar {
+        width: 2px;
+    }
+
+    .speech-bubble {
+        max-width: 280px;
+    }
+
+    .speech-bubble .bubble-content {
+        font-size: 0.6rem;
+    }
 }

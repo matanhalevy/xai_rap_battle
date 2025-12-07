@@ -102,7 +102,7 @@ def generate_beat_pattern(
                 "temperature": 0.7,
                 "max_tokens": 4000,
             },
-            timeout=60,
+            timeout=180,  # 3 minutes for reasoning model
         )
 
         if response.status_code != 200:

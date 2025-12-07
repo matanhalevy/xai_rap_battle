@@ -14,6 +14,7 @@ const state = {
         description: '',
         style: 'UK Grime 1 (Stormzy)',
         customVoice: null,
+        voiceIsRecorded: false,  // true if recorded via REC, false if uploaded
         lyrics: '',
         twitter: ''
     },
@@ -24,12 +25,11 @@ const state = {
         description: '',
         style: 'West Coast (Kendrick)',
         customVoice: null,
+        voiceIsRecorded: false,  // true if recorded via REC, false if uploaded
         lyrics: '',
         twitter: ''
     },
     battle: {
-        videoStyle: 'Photorealistic',
-        location: 'underground hip-hop club',
         beatStyle: 'trap',
         testMode: true,
         audioOnly: true
@@ -38,6 +38,14 @@ const state = {
     currentBattle: {
         id: null,
         eventSource: null
+    },
+    // Battle Arena state (for audio-only mode)
+    arena: {
+        audio: null,
+        timingData: null,
+        waveformData: null,
+        currentLineIndex: -1,
+        isPlaying: false
     }
 };
 
@@ -72,8 +80,6 @@ const elements = {
     twitterB: document.getElementById('twitter-b'),
 
     // Battle config
-    videoStyle: document.getElementById('video-style'),
-    location: document.getElementById('location'),
     beatStyle: document.getElementById('beat-style'),
     bpm: document.getElementById('bpm'),
     bpmValue: document.getElementById('bpm-value'),
@@ -101,10 +107,29 @@ const elements = {
     // Error modal
     errorModal: document.getElementById('error-modal'),
     errorMessage: document.getElementById('error-message'),
-    errorCloseBtn: document.getElementById('error-close-btn')
+    errorCloseBtn: document.getElementById('error-close-btn'),
+
+    // Battle Arena modal (audio-only mode)
+    arenaModal: document.getElementById('battle-arena-modal'),
+    arenaFighterA: document.getElementById('arena-fighter-a'),
+    arenaFighterB: document.getElementById('arena-fighter-b'),
+    arenaPortraitA: document.getElementById('arena-portrait-a'),
+    arenaPortraitB: document.getElementById('arena-portrait-b'),
+    arenaVideoA: document.getElementById('arena-video-a'),
+    arenaVideoB: document.getElementById('arena-video-b'),
+    arenaNameA: document.getElementById('arena-name-a'),
+    arenaNameB: document.getElementById('arena-name-b'),
+    bubbleA: document.getElementById('bubble-a'),
+    bubbleB: document.getElementById('bubble-b'),
+    waveformContainer: document.getElementById('waveform-container'),
+    battleAudio: document.getElementById('battle-audio'),
+    arenaPlayBtn: document.getElementById('arena-play-btn'),
+    whoWinsOverlay: document.getElementById('who-wins-overlay'),
+    arenaDownloadBtn: document.getElementById('arena-download-btn'),
+    arenaRematchBtn: document.getElementById('arena-rematch-btn')
 };
 
-// Stage elements (full pipeline with video)
+// Stage elements (pipeline stages)
 const stages = {
     setup: document.getElementById('stage-setup'),
     voice_a: document.getElementById('stage-voice_a'),
@@ -112,10 +137,8 @@ const stages = {
     bpm_detect: document.getElementById('stage-bpm_detect'),
     beat_gen: document.getElementById('stage-beat_gen'),
     mixing: document.getElementById('stage-mixing'),
-    storyboard: document.getElementById('stage-storyboard'),
-    video: document.getElementById('stage-video'),
-    lipsync: document.getElementById('stage-lipsync'),
-    compose: document.getElementById('stage-compose')
+    talkhead: document.getElementById('stage-talkhead'),
+    lipsync_heads: document.getElementById('stage-lipsync_heads')
 };
 
 // Map backend stages to UI stages (parsing + style_ref_a + style_ref_b all map to "setup")
@@ -128,10 +151,8 @@ const stageMapping = {
     'bpm_detect': 'bpm_detect',
     'beat_gen': 'beat_gen',
     'mixing': 'mixing',
-    'storyboard': 'storyboard',
-    'video': 'video',
-    'lipsync': 'lipsync',
-    'compose': 'compose'
+    'talkhead': 'talkhead',
+    'lipsync_heads': 'lipsync_heads'
 };
 
 // ============================================
@@ -169,6 +190,7 @@ function setupEventListeners() {
     elements.voiceA.addEventListener('change', (e) => {
         if (e.target.files[0]) {
             state.fighterA.customVoice = e.target.files[0];
+            state.fighterA.voiceIsRecorded = false;  // File upload, not recording
             updateVoiceStatus('A', e.target.files[0].name);
             playSelectSound();
         }
@@ -207,6 +229,7 @@ function setupEventListeners() {
     elements.voiceB.addEventListener('change', (e) => {
         if (e.target.files[0]) {
             state.fighterB.customVoice = e.target.files[0];
+            state.fighterB.voiceIsRecorded = false;  // File upload, not recording
             updateVoiceStatus('B', e.target.files[0].name);
             playSelectSound();
         }
@@ -223,16 +246,6 @@ function setupEventListeners() {
     });
 
     // Battle config inputs
-    elements.videoStyle.addEventListener('change', (e) => {
-        state.battle.videoStyle = e.target.value;
-        saveState();
-    });
-
-    elements.location.addEventListener('input', (e) => {
-        state.battle.location = e.target.value;
-        saveState();
-    });
-
     elements.beatStyle.addEventListener('change', (e) => {
         state.battle.beatStyle = e.target.value;
         saveState();
@@ -392,8 +405,6 @@ function loadSavedState() {
         // Restore Battle config
         if (data.battle) {
             state.battle = { ...state.battle, ...data.battle };
-            elements.videoStyle.value = state.battle.videoStyle;
-            elements.location.value = state.battle.location;
             elements.beatStyle.value = state.battle.beatStyle;
             elements.testMode.checked = state.battle.testMode;
             elements.audioOnly.checked = state.battle.audioOnly;
@@ -448,9 +459,9 @@ async function startBattle() {
         const formData = new FormData();
 
         // Battle config (BPM auto-detected from rap audio)
-        formData.append('video_style', state.battle.videoStyle);
-        formData.append('location', state.battle.location);
-        formData.append('time_period', 'present day');  // Default time period
+        formData.append('video_style', 'Photorealistic');  // Default
+        formData.append('location', 'rap battle arena');   // Default
+        formData.append('time_period', 'present day');
         formData.append('beat_style', state.battle.beatStyle);
         formData.append('test_mode', state.battle.testMode);
         formData.append('audio_only', state.battle.audioOnly);
@@ -467,6 +478,7 @@ async function startBattle() {
         }
         if (state.fighterA.customVoice) {
             formData.append('fighter_a_voice', state.fighterA.customVoice);
+            formData.append('fighter_a_voice_recorded', state.fighterA.voiceIsRecorded);
         }
 
         // Fighter B
@@ -481,6 +493,7 @@ async function startBattle() {
         }
         if (state.fighterB.customVoice) {
             formData.append('fighter_b_voice', state.fighterB.customVoice);
+            formData.append('fighter_b_voice_recorded', state.fighterB.voiceIsRecorded);
         }
 
         // Start battle
@@ -522,10 +535,6 @@ function validateBattleInputs() {
     if (!state.fighterB.name.trim()) {
         return { valid: false, message: 'PLAYER 2 NEEDS A NAME!' };
     }
-    // Lyrics are optional - auto-generated if empty
-    if (!state.battle.location.trim()) {
-        return { valid: false, message: 'SET A LOCATION!' };
-    }
     return { valid: true };
 }
 
@@ -533,7 +542,7 @@ async function generateLyrics() {
     const formData = new FormData();
     formData.append('fighter_a_name', state.fighterA.name);
     formData.append('fighter_b_name', state.fighterB.name);
-    formData.append('theme', state.battle.location);  // Use location as theme for lyrics
+    formData.append('theme', 'rap battle');  // Default theme
     formData.append('fighter_a_twitter', state.fighterA.twitter);
     formData.append('fighter_b_twitter', state.fighterB.twitter);
     formData.append('fighter_a_description', state.fighterA.description);
@@ -679,10 +688,20 @@ function handleBattleComplete(data) {
         state.currentBattle.eventSource.close();
     }
 
-    // Hide progress, show result
+    // Hide progress
     hideModal('progress');
     playVictorySound();
 
+    // Check if this is audio-only mode with arena data
+    if (state.battle.audioOnly && data.timing_data && data.waveform) {
+        // Show Battle Arena instead of result modal
+        initBattleArena(data);
+        showModal('arena');
+        elements.fightBtn.disabled = false;
+        return;
+    }
+
+    // Standard result modal (for video or fallback)
     // Set video source (or audio if video not available)
     if (data.video_url) {
         elements.resultVideo.src = data.video_url;
@@ -749,6 +768,7 @@ function updateHealthBars(progress = 100) {
 function showModal(type) {
     const modal = type === 'progress' ? elements.progressModal :
                   type === 'result' ? elements.resultModal :
+                  type === 'arena' ? elements.arenaModal :
                   elements.errorModal;
     modal.classList.add('active');
 }
@@ -756,8 +776,14 @@ function showModal(type) {
 function hideModal(type) {
     const modal = type === 'progress' ? elements.progressModal :
                   type === 'result' ? elements.resultModal :
+                  type === 'arena' ? elements.arenaModal :
                   elements.errorModal;
     modal.classList.remove('active');
+
+    // Clean up arena state when hiding arena modal
+    if (type === 'arena') {
+        cleanupBattleArena();
+    }
 }
 
 function showError(message) {
@@ -1054,8 +1080,10 @@ async function finishVoiceRecording() {
     // Save to state
     if (voiceRecordingFighter === 'A') {
         state.fighterA.customVoice = file;
+        state.fighterA.voiceIsRecorded = true;  // Recorded via REC button
     } else {
         state.fighterB.customVoice = file;
+        state.fighterB.voiceIsRecorded = true;  // Recorded via REC button
     }
 
     // Update voice status
@@ -1093,6 +1121,86 @@ function closeVoiceRecording() {
     // Hide modal
     voiceModal.classList.remove('active');
     voiceRecordingFighter = null;
+}
+
+// ============================================
+// AI WRITE RAP MODAL
+// ============================================
+let aiRapTargetFighter = null;
+const aiRapModal = document.getElementById('ai-rap-modal');
+const aiRapTopicInput = document.getElementById('ai-rap-topic');
+const aiRapGenerateBtn = document.getElementById('ai-rap-generate-btn');
+
+function openAiRapModal(fighter) {
+    aiRapTargetFighter = fighter;
+    aiRapTopicInput.value = '';
+    aiRapGenerateBtn.disabled = false;
+    aiRapGenerateBtn.textContent = 'GENERATE';
+    aiRapModal.classList.add('active');
+    playSelectSound();
+}
+
+function closeAiRapModal() {
+    aiRapModal.classList.remove('active');
+    aiRapTargetFighter = null;
+}
+
+async function generateAiRap() {
+    const topic = aiRapTopicInput.value.trim();
+    if (!topic) {
+        showError('ENTER A TOPIC FIRST!');
+        return;
+    }
+
+    // Get fighter names
+    const nameA = state.fighterA.name || 'Fighter A';
+    const nameB = state.fighterB.name || 'Fighter B';
+
+    // Disable button and show loading
+    aiRapGenerateBtn.disabled = true;
+    aiRapGenerateBtn.textContent = 'GENERATING...';
+
+    try {
+        const formData = new FormData();
+        formData.append('fighter_a_name', nameA);
+        formData.append('fighter_b_name', nameB);
+        formData.append('theme', topic);
+        formData.append('fighter_a_style', state.fighterA.style || 'West Coast (Kendrick)');
+        formData.append('fighter_b_style', state.fighterB.style || 'UK Grime 1 (Stormzy)');
+        formData.append('beat_style', state.battle.beatStyle || 'trap');
+        formData.append('beat_bpm', 140);
+
+        const response = await fetch('/api/lyrics/generate', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to generate lyrics');
+        }
+
+        const data = await response.json();
+
+        // Fill the target fighter's lyrics
+        if (aiRapTargetFighter === 'A') {
+            state.fighterA.lyrics = data.fighter_a_lyrics;
+            elements.lyricsA.value = data.fighter_a_lyrics;
+        } else {
+            state.fighterB.lyrics = data.fighter_b_lyrics;
+            elements.lyricsB.value = data.fighter_b_lyrics;
+        }
+
+        saveState();
+        closeAiRapModal();
+        playVictorySound();
+
+    } catch (error) {
+        console.error('AI Rap generation error:', error);
+        showError(error.message || 'GENERATION FAILED');
+        aiRapGenerateBtn.disabled = false;
+        aiRapGenerateBtn.textContent = 'GENERATE';
+    }
 }
 
 // ============================================
@@ -1244,6 +1352,260 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
+// ============================================
+// BATTLE ARENA (AUDIO-ONLY MODE)
+// ============================================
+function initBattleArena(data) {
+    console.log('Initializing Battle Arena with data:', data);
+
+    // Store arena data
+    state.arena.timingData = data.timing_data;
+    state.arena.waveformData = data.waveform;
+    state.arena.currentLineIndex = -1;
+    state.arena.isPlaying = false;
+
+    // Set up talking head videos if available, otherwise use static portraits
+    if (data.talking_head_a_url) {
+        elements.arenaVideoA.src = data.talking_head_a_url;
+        elements.arenaVideoA.classList.add('active');
+        elements.arenaPortraitA.style.display = 'none';
+    } else if (state.fighterA.imagePreview) {
+        elements.arenaPortraitA.src = state.fighterA.imagePreview;
+        elements.arenaPortraitA.style.display = '';
+        elements.arenaVideoA.classList.remove('active');
+    } else {
+        elements.arenaPortraitA.src = '/static/images/placeholder.png';
+        elements.arenaPortraitA.style.display = '';
+        elements.arenaVideoA.classList.remove('active');
+    }
+
+    if (data.talking_head_b_url) {
+        elements.arenaVideoB.src = data.talking_head_b_url;
+        elements.arenaVideoB.classList.add('active');
+        elements.arenaPortraitB.style.display = 'none';
+    } else if (state.fighterB.imagePreview) {
+        elements.arenaPortraitB.src = state.fighterB.imagePreview;
+        elements.arenaPortraitB.style.display = '';
+        elements.arenaVideoB.classList.remove('active');
+    } else {
+        elements.arenaPortraitB.src = '/static/images/placeholder.png';
+        elements.arenaPortraitB.style.display = '';
+        elements.arenaVideoB.classList.remove('active');
+    }
+
+    // Set fighter names
+    elements.arenaNameA.textContent = state.fighterA.name || 'FIGHTER A';
+    elements.arenaNameB.textContent = state.fighterB.name || 'FIGHTER B';
+
+    // Set audio source
+    elements.battleAudio.src = data.audio_url;
+    state.arena.audio = elements.battleAudio;
+
+    // Set download button
+    elements.arenaDownloadBtn.href = data.audio_url;
+
+    // Generate waveform visualization
+    generateWaveformBars(data.waveform);
+
+    // Set up audio event listeners
+    elements.battleAudio.ontimeupdate = updateArenaVisuals;
+    elements.battleAudio.onended = showWhoWins;
+    elements.battleAudio.onplay = () => {
+        state.arena.isPlaying = true;
+        elements.arenaPlayBtn.textContent = 'PAUSE';
+        // Sync talking head videos with audio
+        if (elements.arenaVideoA.classList.contains('active')) {
+            elements.arenaVideoA.currentTime = elements.battleAudio.currentTime;
+            elements.arenaVideoA.play();
+        }
+        if (elements.arenaVideoB.classList.contains('active')) {
+            elements.arenaVideoB.currentTime = elements.battleAudio.currentTime;
+            elements.arenaVideoB.play();
+        }
+    };
+    elements.battleAudio.onpause = () => {
+        state.arena.isPlaying = false;
+        elements.arenaPlayBtn.textContent = 'PLAY';
+        // Pause talking head videos
+        if (elements.arenaVideoA) elements.arenaVideoA.pause();
+        if (elements.arenaVideoB) elements.arenaVideoB.pause();
+    };
+
+    // Set up play button
+    elements.arenaPlayBtn.onclick = toggleArenaPlayback;
+
+    // Set up rematch button
+    elements.arenaRematchBtn.onclick = () => {
+        hideModal('arena');
+        resetBattle();
+    };
+
+    // Reset WHO WINS overlay
+    elements.whoWinsOverlay.classList.remove('active');
+
+    // Initially set both fighters inactive until audio starts
+    elements.arenaFighterA.classList.add('inactive');
+    elements.arenaFighterB.classList.add('inactive');
+
+    // Clear speech bubbles
+    elements.bubbleA.classList.remove('active');
+    elements.bubbleB.classList.remove('active');
+    elements.bubbleA.querySelector('.bubble-content').textContent = '';
+    elements.bubbleB.querySelector('.bubble-content').textContent = '';
+}
+
+function generateWaveformBars(waveformData) {
+    elements.waveformContainer.innerHTML = '';
+
+    waveformData.forEach((amplitude, index) => {
+        const bar = document.createElement('div');
+        bar.className = 'waveform-bar';
+        bar.style.height = `${Math.max(4, amplitude * 100)}%`;
+        bar.dataset.index = index;
+        elements.waveformContainer.appendChild(bar);
+    });
+}
+
+function toggleArenaPlayback() {
+    if (state.arena.isPlaying) {
+        elements.battleAudio.pause();
+    } else {
+        elements.battleAudio.play();
+    }
+}
+
+function updateArenaVisuals() {
+    if (!state.arena.audio || !state.arena.timingData) return;
+
+    const currentTime = state.arena.audio.currentTime;
+    const duration = state.arena.audio.duration || 1;
+    const lines = state.arena.timingData.lines || [];
+
+    // Update waveform progress
+    const progress = currentTime / duration;
+    const totalBars = elements.waveformContainer.children.length;
+    const currentBarIndex = Math.floor(progress * totalBars);
+
+    Array.from(elements.waveformContainer.children).forEach((bar, i) => {
+        bar.classList.remove('played', 'current');
+        if (i < currentBarIndex) {
+            bar.classList.add('played');
+        } else if (i === currentBarIndex) {
+            bar.classList.add('current');
+        }
+    });
+
+    // Find current line
+    let foundLine = null;
+    let foundIndex = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (currentTime >= line.start && currentTime < line.end) {
+            foundLine = line;
+            foundIndex = i;
+            break;
+        }
+    }
+
+    // Update display if line changed
+    if (foundIndex !== state.arena.currentLineIndex) {
+        state.arena.currentLineIndex = foundIndex;
+
+        if (foundLine) {
+            // Update active fighter
+            const isA = foundLine.fighter === 'A';
+
+            elements.arenaFighterA.classList.toggle('inactive', !isA);
+            elements.arenaFighterB.classList.toggle('inactive', isA);
+
+            // Update speech bubbles
+            elements.bubbleA.classList.toggle('active', isA);
+            elements.bubbleB.classList.toggle('active', !isA);
+
+            if (isA) {
+                elements.bubbleA.querySelector('.bubble-content').textContent = foundLine.text;
+            } else {
+                elements.bubbleB.querySelector('.bubble-content').textContent = foundLine.text;
+            }
+        } else {
+            // No current line - dim both
+            elements.arenaFighterA.classList.add('inactive');
+            elements.arenaFighterB.classList.add('inactive');
+            elements.bubbleA.classList.remove('active');
+            elements.bubbleB.classList.remove('active');
+        }
+    }
+}
+
+function showWhoWins() {
+    // Light up both fighters
+    elements.arenaFighterA.classList.remove('inactive');
+    elements.arenaFighterB.classList.remove('inactive');
+
+    // Hide speech bubbles
+    elements.bubbleA.classList.remove('active');
+    elements.bubbleB.classList.remove('active');
+
+    // Show WHO WINS overlay
+    elements.whoWinsOverlay.classList.add('active');
+
+    // Update play button
+    elements.arenaPlayBtn.textContent = 'REPLAY';
+    elements.arenaPlayBtn.onclick = () => {
+        elements.whoWinsOverlay.classList.remove('active');
+        elements.battleAudio.currentTime = 0;
+        elements.battleAudio.play();
+        elements.arenaPlayBtn.textContent = 'PAUSE';
+        elements.arenaPlayBtn.onclick = toggleArenaPlayback;
+    };
+}
+
+function cleanupBattleArena() {
+    // Stop audio playback
+    if (elements.battleAudio) {
+        elements.battleAudio.pause();
+        elements.battleAudio.currentTime = 0;
+        elements.battleAudio.src = '';
+    }
+
+    // Stop and reset talking head videos
+    if (elements.arenaVideoA) {
+        elements.arenaVideoA.pause();
+        elements.arenaVideoA.currentTime = 0;
+        elements.arenaVideoA.src = '';
+        elements.arenaVideoA.classList.remove('active');
+    }
+    if (elements.arenaVideoB) {
+        elements.arenaVideoB.pause();
+        elements.arenaVideoB.currentTime = 0;
+        elements.arenaVideoB.src = '';
+        elements.arenaVideoB.classList.remove('active');
+    }
+    // Restore portrait display
+    if (elements.arenaPortraitA) elements.arenaPortraitA.style.display = '';
+    if (elements.arenaPortraitB) elements.arenaPortraitB.style.display = '';
+
+    // Reset state
+    state.arena = {
+        audio: null,
+        timingData: null,
+        waveformData: null,
+        currentLineIndex: -1,
+        isPlaying: false
+    };
+
+    // Clear waveform
+    if (elements.waveformContainer) {
+        elements.waveformContainer.innerHTML = '';
+    }
+
+    // Reset WHO WINS overlay
+    if (elements.whoWinsOverlay) {
+        elements.whoWinsOverlay.classList.remove('active');
+    }
+}
 
 // ============================================
 // INITIALIZE ON DOM LOAD
