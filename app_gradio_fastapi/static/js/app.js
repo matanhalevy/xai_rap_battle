@@ -14,7 +14,8 @@ const state = {
         description: '',
         style: 'UK Grime 1 (Stormzy)',
         customVoice: null,
-        lyrics: ''
+        lyrics: '',
+        twitter: ''
     },
     fighterB: {
         name: '',
@@ -23,7 +24,8 @@ const state = {
         description: '',
         style: 'West Coast (Kendrick)',
         customVoice: null,
-        lyrics: ''
+        lyrics: '',
+        twitter: ''
     },
     battle: {
         theme: 'cyberpunk neon city',
@@ -53,6 +55,7 @@ const elements = {
     voiceStatusA: document.getElementById('voice-status-a'),
     lyricsA: document.getElementById('lyrics-a'),
     healthA: document.getElementById('health-a'),
+    twitterA: document.getElementById('twitter-a'),
 
     // Fighter B
     nameB: document.getElementById('name-b'),
@@ -65,6 +68,7 @@ const elements = {
     voiceStatusB: document.getElementById('voice-status-b'),
     lyricsB: document.getElementById('lyrics-b'),
     healthB: document.getElementById('health-b'),
+    twitterB: document.getElementById('twitter-b'),
 
     // Battle config
     theme: document.getElementById('theme'),
@@ -157,6 +161,11 @@ function setupEventListeners() {
         saveState();
     });
 
+    elements.twitterA.addEventListener('input', (e) => {
+        state.fighterA.twitter = e.target.value;
+        saveState();
+    });
+
     // Fighter B inputs
     elements.nameB.addEventListener('input', (e) => {
         state.fighterB.name = e.target.value;
@@ -187,6 +196,11 @@ function setupEventListeners() {
 
     elements.lyricsB.addEventListener('input', (e) => {
         state.fighterB.lyrics = e.target.value;
+        saveState();
+    });
+
+    elements.twitterB.addEventListener('input', (e) => {
+        state.fighterB.twitter = e.target.value;
         saveState();
     });
 
@@ -289,14 +303,16 @@ function saveState() {
             description: state.fighterA.description,
             style: state.fighterA.style,
             lyrics: state.fighterA.lyrics,
-            imagePreview: state.fighterA.imagePreview
+            imagePreview: state.fighterA.imagePreview,
+            twitter: state.fighterA.twitter
         },
         fighterB: {
             name: state.fighterB.name,
             description: state.fighterB.description,
             style: state.fighterB.style,
             lyrics: state.fighterB.lyrics,
-            imagePreview: state.fighterB.imagePreview
+            imagePreview: state.fighterB.imagePreview,
+            twitter: state.fighterB.twitter
         },
         battle: state.battle
     };
@@ -317,11 +333,13 @@ function loadSavedState() {
             state.fighterA.style = data.fighterA.style || 'UK Grime 1 (Stormzy)';
             state.fighterA.lyrics = data.fighterA.lyrics || '';
             state.fighterA.imagePreview = data.fighterA.imagePreview || null;
+            state.fighterA.twitter = data.fighterA.twitter || '';
 
             elements.nameA.value = state.fighterA.name;
             elements.descA.value = state.fighterA.description;
             elements.styleA.value = state.fighterA.style;
             elements.lyricsA.value = state.fighterA.lyrics;
+            elements.twitterA.value = state.fighterA.twitter;
 
             if (state.fighterA.imagePreview) {
                 updatePortrait('A', state.fighterA.imagePreview);
@@ -335,11 +353,13 @@ function loadSavedState() {
             state.fighterB.style = data.fighterB.style || 'West Coast (Kendrick)';
             state.fighterB.lyrics = data.fighterB.lyrics || '';
             state.fighterB.imagePreview = data.fighterB.imagePreview || null;
+            state.fighterB.twitter = data.fighterB.twitter || '';
 
             elements.nameB.value = state.fighterB.name;
             elements.descB.value = state.fighterB.description;
             elements.styleB.value = state.fighterB.style;
             elements.lyricsB.value = state.fighterB.lyrics;
+            elements.twitterB.value = state.fighterB.twitter;
 
             if (state.fighterB.imagePreview) {
                 updatePortrait('B', state.fighterB.imagePreview);
@@ -392,6 +412,7 @@ async function startBattle() {
         formData.append('fighter_a_description', state.fighterA.description);
         formData.append('fighter_a_style', state.fighterA.style);
         formData.append('fighter_a_lyrics', state.fighterA.lyrics);
+        formData.append('fighter_a_twitter', state.fighterA.twitter);
 
         if (state.fighterA.image) {
             formData.append('fighter_a_image', state.fighterA.image);
@@ -405,6 +426,7 @@ async function startBattle() {
         formData.append('fighter_b_description', state.fighterB.description);
         formData.append('fighter_b_style', state.fighterB.style);
         formData.append('fighter_b_lyrics', state.fighterB.lyrics);
+        formData.append('fighter_b_twitter', state.fighterB.twitter);
 
         if (state.fighterB.image) {
             formData.append('fighter_b_image', state.fighterB.image);

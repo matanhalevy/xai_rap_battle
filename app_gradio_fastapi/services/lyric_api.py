@@ -26,6 +26,8 @@ OPPONENT: {opponent_name}
 
 ATMOSPHERE: {scene_description}
 
+{tweet_context}
+
 VERSE NUMBER: {verse_number} of 4
 {verse_context}
 
@@ -110,6 +112,7 @@ def generate_verse(
     verse_number: int,
     beat_style: str | None = None,
     beat_bpm: int | None = None,
+    tweet_context: str = "",
 ) -> tuple[str | None, str]:
     """
     Call Grok API to generate a battle rap verse.
@@ -126,6 +129,7 @@ def generate_verse(
         verse_number: Which verse (1-4)
         beat_style: Optional beat style (trap, boom bap, west coast, drill)
         beat_bpm: Optional tempo in BPM
+        tweet_context: Pre-fetched tweet context for both fighters
 
     Returns:
         Tuple of (verse_text, status_message)
@@ -149,6 +153,14 @@ def generate_verse(
         personality_lines.append(f"Research {opponent_name}'s personality from their Twitter ({handle}) for context, but do NOT use the handle in lyrics")
     personality_context = "\n".join(personality_lines) if personality_lines else ""
 
+    # Build tweet context section if provided
+    tweet_context_section = ""
+    if tweet_context:
+        tweet_context_section = f"""REAL-TIME X/TWITTER INTEL:
+{tweet_context}
+
+Use this intel to make your bars PERSONAL and CURRENT. Reference their real tweets, opinions, and any beef between them!"""
+
     # Build the prompt
     prompt = VERSE_PROMPT_TEMPLATE.format(
         topic=topic,
@@ -158,6 +170,7 @@ def generate_verse(
         rapper_name=rapper_name,
         opponent_name=opponent_name,
         personality_context=personality_context,
+        tweet_context=tweet_context_section,
         verse_number=verse_number,
         verse_context=_get_verse_context(verse_number),
         previous_verses_section=_build_previous_verses_section(previous_verses),
@@ -235,6 +248,18 @@ def generate_all_verses(
     verses = []
     previous_verses = []
 
+    # Fetch tweet context if handles are provided
+    tweet_context = ""
+    if char1_twitter or char2_twitter:
+        from app_gradio_fastapi.services.twitter_api import get_tweet_context_for_battle
+        tweet_context, tweet_status = get_tweet_context_for_battle(
+            char1_handle=char1_twitter,
+            char2_handle=char2_twitter,
+        )
+        # Log tweet fetch status (context will be empty string if fetch failed)
+        if tweet_context:
+            print(f"Tweet context fetched: {tweet_status}")
+
     # Define the verse order: (rapper_name, rapper_twitter, opponent_name, opponent_twitter)
     verse_order = [
         (char1_name, char1_twitter, char2_name, char2_twitter),  # Verse 1: char1
@@ -256,6 +281,7 @@ def generate_all_verses(
             verse_number=verse_num,
             beat_style=beat_style,
             beat_bpm=beat_bpm,
+            tweet_context=tweet_context,
         )
 
         if verse_text is None:

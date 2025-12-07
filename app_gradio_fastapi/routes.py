@@ -50,10 +50,12 @@ async def start_battle(
     fighter_a_description: Annotated[str, Form()] = "",
     fighter_a_style: Annotated[str, Form()] = "UK Grime 1 (Stormzy)",
     fighter_a_lyrics: Annotated[str, Form()] = "",
+    fighter_a_twitter: Annotated[str, Form()] = "",
     fighter_b_name: Annotated[str, Form()] = "",
     fighter_b_description: Annotated[str, Form()] = "",
     fighter_b_style: Annotated[str, Form()] = "West Coast (Kendrick)",
     fighter_b_lyrics: Annotated[str, Form()] = "",
+    fighter_b_twitter: Annotated[str, Form()] = "",
     fighter_a_image: Annotated[UploadFile | None, File()] = None,
     fighter_a_voice: Annotated[UploadFile | None, File()] = None,
     fighter_b_image: Annotated[UploadFile | None, File()] = None,
@@ -97,6 +99,8 @@ async def start_battle(
             fighter_a_voice_path=fighter_a_voice_path,
             fighter_b_image_path=fighter_b_image_path,
             fighter_b_voice_path=fighter_b_voice_path,
+            fighter_a_twitter=fighter_a_twitter or None,
+            fighter_b_twitter=fighter_b_twitter or None,
         )
 
         # Start battle

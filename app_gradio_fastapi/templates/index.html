@@ -54,18 +54,24 @@
                 </div>
 
                 <div class="fighter-config">
-                    <div class="config-group">
-                        <label class="pixel-label">PORTRAIT</label>
-                        <div class="input-row">
-                            <div class="file-upload-wrapper">
-                                <input type="file" id="image-a" accept="image/*" class="file-input">
-                                <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-a').click()">
-                                    <span class="btn-icon">+</span> FILE
+                    <div class="config-row">
+                        <div class="config-group half">
+                            <label class="pixel-label">PORTRAIT</label>
+                            <div class="input-row">
+                                <div class="file-upload-wrapper">
+                                    <input type="file" id="image-a" accept="image/*" class="file-input">
+                                    <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-a').click()">
+                                        <span class="btn-icon">+</span> FILE
+                                    </button>
+                                </div>
+                                <button type="button" class="pixel-btn camera-btn" id="camera-btn-a" onclick="openCamera('A')">
+                                    <span class="btn-icon">CAM</span>
                                 </button>
                             </div>
-                            <button type="button" class="pixel-btn camera-btn" id="camera-btn-a" onclick="openCamera('A')">
-                                <span class="btn-icon">CAM</span>
-                            </button>
+                        </div>
+                        <div class="config-group half">
+                            <label class="pixel-label">X HANDLE</label>
+                            <input type="text" id="twitter-a" class="pixel-input" placeholder="@username">
                         </div>
                     </div>
 
@@ -198,18 +204,24 @@
                 </div>
 
                 <div class="fighter-config">
-                    <div class="config-group">
-                        <label class="pixel-label">PORTRAIT</label>
-                        <div class="input-row">
-                            <div class="file-upload-wrapper">
-                                <input type="file" id="image-b" accept="image/*" class="file-input">
-                                <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-b').click()">
-                                    <span class="btn-icon">+</span> FILE
+                    <div class="config-row">
+                        <div class="config-group half">
+                            <label class="pixel-label">PORTRAIT</label>
+                            <div class="input-row">
+                                <div class="file-upload-wrapper">
+                                    <input type="file" id="image-b" accept="image/*" class="file-input">
+                                    <button type="button" class="pixel-btn upload-btn" onclick="document.getElementById('image-b').click()">
+                                        <span class="btn-icon">+</span> FILE
+                                    </button>
+                                </div>
+                                <button type="button" class="pixel-btn camera-btn" id="camera-btn-b" onclick="openCamera('B')">
+                                    <span class="btn-icon">CAM</span>
                                 </button>
                             </div>
-                            <button type="button" class="pixel-btn camera-btn" id="camera-btn-b" onclick="openCamera('B')">
-                                <span class="btn-icon">CAM</span>
-                            </button>
+                        </div>
+                        <div class="config-group half">
+                            <label class="pixel-label">X HANDLE</label>
+                            <input type="text" id="twitter-b" class="pixel-input" placeholder="@username">
                         </div>
                     </div>
 

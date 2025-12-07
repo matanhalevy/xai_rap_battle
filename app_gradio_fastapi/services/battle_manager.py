@@ -64,6 +64,8 @@ class BattleConfig:
     fighter_a_voice_path: str | None = None
     fighter_b_image_path: str | None = None
     fighter_b_voice_path: str | None = None
+    fighter_a_twitter: str | None = None
+    fighter_b_twitter: str | None = None
 
 
 @dataclass
