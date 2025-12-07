@@ -3,6 +3,19 @@ __pycache__
 *.pyc
 flagged/*
 
+# Environment variables
+.env
+.env.local
+.env*.local
+
+# Generated audio outputs
+outputs/
+
+# Voice samples (may contain copyrighted material)
+voices/*.mp3
+voices/*.m4a
+voices/*.wav
+
 # Created by https://www.toptal.com/developers/gitignore/api/pycharm+all
 # Edit at https://www.toptal.com/developers/gitignore?templates=pycharm+all
 
@@ -95,3 +108,5 @@ fabric.properties
 !.idea/runConfigurations
 
 # End of https://www.toptal.com/developers/gitignore/api/pycharm+all
+
+docs/** */
