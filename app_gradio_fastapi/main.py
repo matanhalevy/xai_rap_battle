@@ -4,6 +4,9 @@ Grok DJ Rap Battle - FastAPI Application
 8-bit Street Fighter themed rap battle video generator using xAI APIs.
 """
 
+import math
+import tempfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 from pathlib import Path
 
@@ -12,6 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from pydub import AudioSegment
 
 from app_gradio_fastapi import routes
 from app_gradio_fastapi.helpers.session_logger import change_logging
@@ -207,8 +211,10 @@ def handle_generate_all_lyrics(
     char2_twitter: str,
     theme: str,
     scene: str,
+    beat_style: str,
+    beat_bpm: int,
 ):
-    """Generate all 4 verses using Grok AI."""
+    """Generate all 4 verses using Grok AI with beat context."""
     if not char1_name.strip():
         return "", "", "", "", "Error: Please enter Character 1's name"
     if not char2_name.strip():
@@ -224,6 +230,8 @@ def handle_generate_all_lyrics(
         topic=theme.strip(),
         description="",
         scene_description=scene.strip() if scene else "",
+        beat_style=beat_style,
+        beat_bpm=int(beat_bpm) if beat_bpm else None,
     )
 
     # Pad verses if fewer than 4 were generated
@@ -237,6 +245,69 @@ def handle_generate_all_lyrics(
     return verses[0], verses[1], verses[2], verses[3], status
 
 
+def mix_vocals_with_beat(
+    vocals_path: str,
+    beat_path: str,
+    beat_volume: float = 0.6,
+) -> str | None:
+    """
+    Mix vocal track with beat track using pydub.
+
+    Args:
+        vocals_path: Path to combined vocals audio
+        beat_path: Path to beat/instrumental track
+        beat_volume: Volume for beat (0.0-1.0), default 0.6
+
+    Returns:
+        Path to mixed audio file, or None on error
+    """
+    try:
+        vocals = AudioSegment.from_file(vocals_path)
+        beat = AudioSegment.from_file(beat_path)
+
+        # Loop beat to match vocals duration
+        if len(beat) < len(vocals):
+            loops_needed = (len(vocals) // len(beat)) + 1
+            beat = beat * loops_needed
+        beat = beat[:len(vocals)]
+
+        # Adjust beat volume (convert 0-1 scale to dB)
+        if beat_volume < 1.0:
+            db_reduction = 20 * math.log10(beat_volume)
+            beat = beat + db_reduction
+
+        # Mix/overlay
+        mixed = vocals.overlay(beat)
+
+        # Export
+        output_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        mixed.export(output_file.name, format="mp3")
+
+        return output_file.name
+    except Exception as e:
+        print(f"Mix error: {e}")
+        return None
+
+
+def generate_verse_audio(
+    verse_num: int,
+    lyrics: str,
+    style: str,
+    voice_file: str,
+    beat_bpm: int | None,
+    beat_style: str | None,
+) -> tuple[int, str | None, str]:
+    """Generate audio for a single verse. Used for parallel execution."""
+    audio_path, status = generate_rap_voice(
+        lyrics=lyrics,
+        style_instructions=style if style.strip() else "aggressive rapper with rhythmic flow",
+        voice_file=voice_file,
+        beat_bpm=beat_bpm,
+        beat_style=beat_style,
+    )
+    return verse_num, audio_path, status
+
+
 def handle_generate_all_audio(
     custom_verse1: str,
     custom_verse2: str,
@@ -248,10 +319,13 @@ def handle_generate_all_audio(
     grok_verse4: str,
     char1_style: str,
     char2_style: str,
+    beat_style: str,
+    beat_bpm: int,
+    beat_bars: int,
+    beat_loops: int,
 ):
-    """Generate audio for all 4 verses and combine them using ffmpeg."""
+    """Generate beat, audio for all 4 verses in parallel, combine, and mix with beat."""
     import subprocess
-    import tempfile
     import os
 
     custom_verses = [custom_verse1, custom_verse2, custom_verse3, custom_verse4]
@@ -259,10 +333,21 @@ def handle_generate_all_audio(
     styles = [char1_style, char2_style, char1_style, char2_style]
     characters = ["char1", "char2", "char1", "char2"]
 
-    audio_paths = []
-    errors = []
+    # Step 1: Generate beat
+    beat_path = None
+    beat_status = "Beat generation skipped"
+    try:
+        beat_audio, beat_json, beat_status = handle_beat_generation(
+            beat_style, int(beat_bpm), int(beat_bars), int(beat_loops)
+        )
+        if beat_audio:
+            beat_path = beat_audio
+            beat_status = "Beat generated"
+    except Exception as e:
+        beat_status = f"Beat generation failed: {e}"
 
-    # Generate each verse
+    # Step 2: Prepare verse generation tasks
+    verse_tasks = []
     for i in range(4):
         verse_num = i + 1
         custom = custom_verses[i]
@@ -270,32 +355,61 @@ def handle_generate_all_audio(
         style = styles[i]
         character = characters[i]
 
-        # Use custom verse if provided, otherwise use Grok-generated
         lyrics = custom.strip() if custom.strip() else grok.strip()
-
-        if not lyrics:
-            errors.append(f"Verse {verse_num}: No lyrics")
-            audio_paths.append(None)
-            continue
-
         ref_path = _style_reference_cache[character]["path"]
-        if not ref_path:
-            errors.append(f"Verse {verse_num}: No voice reference for {character}")
-            audio_paths.append(None)
-            continue
 
-        audio_path, status = generate_rap_voice(
-            lyrics=lyrics,
-            style_instructions=style if style.strip() else "aggressive rapper with rhythmic flow",
-            voice_file=ref_path,
-        )
+        if lyrics and ref_path:
+            verse_tasks.append({
+                "verse_num": verse_num,
+                "lyrics": lyrics,
+                "style": style,
+                "voice_file": ref_path,
+                "beat_bpm": int(beat_bpm) if beat_bpm else None,
+                "beat_style": beat_style,
+            })
 
-        if audio_path:
-            _audio_cache[f"verse{verse_num}"] = audio_path
-            audio_paths.append(audio_path)
-        else:
-            errors.append(f"Verse {verse_num}: {status}")
-            audio_paths.append(None)
+    # Step 3: Generate verse audio in parallel
+    audio_paths = [None, None, None, None]
+    errors = []
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(
+                generate_verse_audio,
+                task["verse_num"],
+                task["lyrics"],
+                task["style"],
+                task["voice_file"],
+                task["beat_bpm"],
+                task["beat_style"],
+            ): task["verse_num"]
+            for task in verse_tasks
+        }
+
+        for future in as_completed(futures):
+            verse_num = futures[future]
+            try:
+                v_num, audio_path, status = future.result()
+                if audio_path:
+                    audio_paths[v_num - 1] = audio_path
+                    _audio_cache[f"verse{v_num}"] = audio_path
+                else:
+                    errors.append(f"Verse {v_num}: {status}")
+            except Exception as e:
+                errors.append(f"Verse {verse_num}: {e}")
+
+    # Check for missing verses (no lyrics or no voice reference)
+    for i in range(4):
+        if audio_paths[i] is None and not any(f"Verse {i+1}" in e for e in errors):
+            custom = custom_verses[i]
+            grok = grok_verses[i]
+            character = characters[i]
+            lyrics = custom.strip() if custom.strip() else grok.strip()
+            ref_path = _style_reference_cache[character]["path"]
+            if not lyrics:
+                errors.append(f"Verse {i+1}: No lyrics")
+            elif not ref_path:
+                errors.append(f"Verse {i+1}: No voice reference for {character}")
 
     # Check if we have all audio files
     if None in audio_paths:
@@ -306,10 +420,13 @@ def handle_generate_all_audio(
             audio_paths[2],
             audio_paths[3],
             None,
-            f"Partial generation: {error_msg}",
+            None,
+            f"Partial generation: {error_msg}. {beat_status}",
         )
 
-    # Combine all audio files using ffmpeg
+    # Step 4: Combine all audio files using ffmpeg
+    combined_path = None
+    combined_with_beat_path = None
     try:
         # Create a temporary file list for ffmpeg concat
         with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
@@ -318,7 +435,7 @@ def handle_generate_all_audio(
                 f.write(f"file '{path}'\n")
 
         # Output combined file
-        combined_path = tempfile.mktemp(suffix=".mp3")
+        combined_path = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False).name
 
         # Use ffmpeg to concatenate
         cmd = [
@@ -337,8 +454,17 @@ def handle_generate_all_audio(
                 audio_paths[2],
                 audio_paths[3],
                 None,
+                None,
                 f"FFmpeg error: {result.stderr}",
             )
+
+        # Step 5: Mix with beat if available
+        if beat_path:
+            combined_with_beat_path = mix_vocals_with_beat(combined_path, beat_path, beat_volume=0.6)
+            if combined_with_beat_path:
+                beat_status = "Beat mixed successfully"
+            else:
+                beat_status = "Beat mixing failed"
 
         return (
             audio_paths[0],
@@ -346,7 +472,8 @@ def handle_generate_all_audio(
             audio_paths[2],
             audio_paths[3],
             combined_path,
-            "All audio generated successfully!",
+            combined_with_beat_path,
+            f"All audio generated! {beat_status}",
         )
 
     except Exception as e:
@@ -355,6 +482,7 @@ def handle_generate_all_audio(
             audio_paths[1],
             audio_paths[2],
             audio_paths[3],
+            combined_path,
             None,
             f"Error combining: {e}",
         )
@@ -377,18 +505,35 @@ def handle_beat_generation(style: str, bpm: int, bars: int, loops: int):
         return None, json_str, f"Synthesis error: {e}"
 
 
-def handle_storyboard_preview(script: str, theme: str, char_a: str, char_b: str):
+def handle_storyboard_preview(
+    script: str,
+    theme: str,
+    char_a: str,
+    char_b: str,
+    speaker_a_img=None,
+    speaker_b_img=None,
+):
     """Generate storyboard images only (quick preview)."""
     if not script.strip():
         return [], "Error: Please enter a rap script"
     if not theme.strip():
         return [], "Error: Please enter a theme"
 
+    # Speaker reference photos (enables Image Edit API for face preservation)
+    speaker_a_image_path = None
+    speaker_b_image_path = None
+    if speaker_a_img is not None:
+        speaker_a_image_path = speaker_a_img if isinstance(speaker_a_img, str) else speaker_a_img
+    if speaker_b_img is not None:
+        speaker_b_image_path = speaker_b_img if isinstance(speaker_b_img, str) else speaker_b_img
+
     images, messages = run_storyboard_only(
         script=script,
         theme=theme,
         character_a_desc=char_a if char_a.strip() else "intense male rapper in streetwear",
         character_b_desc=char_b if char_b.strip() else "confident female rapper in urban fashion",
+        speaker_a_image=speaker_a_image_path,
+        speaker_b_image=speaker_b_image_path,
     )
     return images, "\n".join(messages)
 
@@ -429,6 +574,14 @@ def handle_full_video_generation(
     if beat_file is not None:
         beat_path = beat_file.name if hasattr(beat_file, "name") else beat_file
 
+    # Speaker reference photos (enables Image Edit API for face preservation)
+    speaker_a_image_path = None
+    speaker_b_image_path = None
+    if speaker_a_img is not None:
+        speaker_a_image_path = speaker_a_img if isinstance(speaker_a_img, str) else speaker_a_img
+    if speaker_b_img is not None:
+        speaker_b_image_path = speaker_b_img if isinstance(speaker_b_img, str) else speaker_b_img
+
     result = run_storyboard_pipeline(
         script=script,
         theme=theme,
@@ -436,6 +589,8 @@ def handle_full_video_generation(
         beat_path=beat_path,
         speaker_a_name=speaker_a.strip(),
         speaker_b_name=speaker_b.strip(),
+        speaker_a_image=speaker_a_image_path,
+        speaker_b_image=speaker_b_image_path,
         character_a_desc=char_a if char_a.strip() else "intense male rapper in streetwear",
         character_b_desc=char_b if char_b.strip() else "confident female rapper in urban fashion",
         test_mode=test_mode,
@@ -497,6 +652,29 @@ Configure your rap battle characters and generate verses with audio.
                     label="Scene Description",
                     lines=2,
                     placeholder="Describe the setting (used for lyrics context and future video generation)...",
+                )
+
+            gr.Markdown("### Beat Configuration")
+            with gr.Row():
+                beat_style = gr.Dropdown(
+                    choices=["trap", "boom bap", "west coast", "drill"],
+                    value="trap",
+                    label="Beat Style",
+                    info="Affects lyric cadence and audio tempo",
+                )
+                beat_bpm = gr.Slider(
+                    minimum=60, maximum=180, value=140, step=5,
+                    label="BPM",
+                    info="Tempo for beat and vocal sync",
+                )
+                beat_bars = gr.Dropdown(
+                    choices=[2, 4, 8], value=4,
+                    label="Bars per Pattern",
+                )
+                beat_loops = gr.Slider(
+                    minimum=1, maximum=16, value=8, step=1,
+                    label="Pattern Loops",
+                    info="Total beat duration = bars x loops",
                 )
             gr.Markdown("---")
 
@@ -753,6 +931,9 @@ Configure your rap battle characters and generate verses with audio.
             gr.Markdown("##### Combined Battle")
             combined_audio = gr.Audio(label="Full Battle (All 4 Verses)", type="filepath")
 
+            gr.Markdown("##### Combined Battle with Beat")
+            combined_with_beat_audio = gr.Audio(label="Full Battle + Beat Track", type="filepath")
+
             # Dropdown change handlers (auto-populate style instructions)
             char1_style_dropdown.change(
                 fn=update_style_dropdown,
@@ -775,6 +956,8 @@ Configure your rap battle characters and generate verses with audio.
                     char2_twitter,
                     battle_theme,
                     scene_description,
+                    beat_style,
+                    beat_bpm,
                 ],
                 outputs=[grok_verse1, grok_verse2, grok_verse3, grok_verse4, lyrics_status],
             )
@@ -793,6 +976,10 @@ Configure your rap battle characters and generate verses with audio.
                     grok_verse4,
                     char1_style_instructions,
                     char2_style_instructions,
+                    beat_style,
+                    beat_bpm,
+                    beat_bars,
+                    beat_loops,
                 ],
                 outputs=[
                     verse1_audio,
@@ -800,6 +987,7 @@ Configure your rap battle characters and generate verses with audio.
                     verse3_audio,
                     verse4_audio,
                     combined_audio,
+                    combined_with_beat_audio,
                     audio_status,
                 ],
             )
@@ -956,7 +1144,7 @@ The battle ends, the crowd roars, who will claim the throne?""",
 
             preview_btn.click(
                 fn=handle_storyboard_preview,
-                inputs=[script_input, theme_input, char_a_input, char_b_input],
+                inputs=[script_input, theme_input, char_a_input, char_b_input, speaker_a_image, speaker_b_image],
                 outputs=[storyboard_gallery, status_output],
             )
             generate_btn.click(

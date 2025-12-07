@@ -22,6 +22,95 @@ ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY")
 BASE_URL = "https://api.elevenlabs.io/v1"
 
 
+def list_voices() -> tuple[list[dict] | None, str]:
+    """
+    List all voices in the ElevenLabs account.
+
+    Returns:
+        Tuple of (list of voice dicts, status_message)
+    """
+    if not ELEVENLABS_API_KEY:
+        return None, "Error: ELEVENLABS_API_KEY not set"
+
+    url = f"{BASE_URL}/voices"
+    headers = {"xi-api-key": ELEVENLABS_API_KEY}
+
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        if response.status_code == 200:
+            voices = response.json().get("voices", [])
+            return voices, f"Found {len(voices)} voices"
+        else:
+            return None, f"Error {response.status_code}: {response.text}"
+    except requests.exceptions.RequestException as e:
+        return None, f"Request error: {e}"
+
+
+def delete_voice(voice_id: str) -> tuple[bool, str]:
+    """
+    Delete a voice from ElevenLabs.
+
+    Args:
+        voice_id: The voice ID to delete
+
+    Returns:
+        Tuple of (success, status_message)
+    """
+    if not ELEVENLABS_API_KEY:
+        return False, "Error: ELEVENLABS_API_KEY not set"
+
+    url = f"{BASE_URL}/voices/{voice_id}"
+    headers = {"xi-api-key": ELEVENLABS_API_KEY}
+
+    try:
+        response = requests.delete(url, headers=headers, timeout=30)
+        if response.status_code == 200:
+            return True, f"Voice {voice_id} deleted"
+        else:
+            return False, f"Error {response.status_code}: {response.text}"
+    except requests.exceptions.RequestException as e:
+        return False, f"Request error: {e}"
+
+
+def cleanup_old_voices(keep_count: int = 5) -> tuple[int, str]:
+    """
+    Delete old cloned voices, keeping only the most recent ones.
+
+    Args:
+        keep_count: Number of cloned voices to keep (default 5)
+
+    Returns:
+        Tuple of (deleted_count, status_message)
+    """
+    voices, status = list_voices()
+    if voices is None:
+        return 0, status
+
+    # Filter to only cloned voices (category == "cloned")
+    cloned = [v for v in voices if v.get("category") == "cloned"]
+    print(f"Found {len(cloned)} cloned voices")
+
+    if len(cloned) <= keep_count:
+        return 0, f"Only {len(cloned)} cloned voices, no cleanup needed"
+
+    # Sort by creation date if available, otherwise just take from the end
+    # ElevenLabs doesn't always provide creation date, so we'll delete oldest first
+    to_delete = cloned[:-keep_count] if keep_count > 0 else cloned
+
+    deleted = 0
+    for voice in to_delete:
+        vid = voice.get("voice_id")
+        name = voice.get("name", "unknown")
+        success, msg = delete_voice(vid)
+        if success:
+            deleted += 1
+            print(f"Deleted voice: {name} ({vid})")
+        else:
+            print(f"Failed to delete {name}: {msg}")
+
+    return deleted, f"Deleted {deleted} old cloned voices"
+
+
 def clone_voice(name: str, audio_file: str, description: str = "") -> tuple[str | None, str]:
     """
     Clone a voice from an audio sample.

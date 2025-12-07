@@ -30,11 +30,35 @@ def file_to_base64(file_path: str) -> str:
         return base64.b64encode(file.read()).decode("utf-8")
 
 
+def _build_tempo_instructions(base_instructions: str, bpm: int | None, style: str | None) -> str:
+    """Enhance style instructions with tempo context."""
+    if not bpm:
+        return base_instructions
+
+    tempo_mapping = {
+        (60, 90): "slow, deliberate",
+        (90, 120): "moderate groove",
+        (120, 150): "energetic, punchy",
+        (150, 180): "rapid-fire, intense",
+    }
+
+    tempo_desc = "moderate"
+    for (low, high), desc in tempo_mapping.items():
+        if low <= bpm < high:
+            tempo_desc = desc
+            break
+
+    style_suffix = f" {style} style" if style else ""
+    return f"{base_instructions}. Delivery: {tempo_desc} at {bpm} BPM{style_suffix}"
+
+
 def generate_rap_voice(
     lyrics: str,
     style_instructions: str = "aggressive hip-hop rapper with rhythmic flow",
     voice_file: str | None = None,
     temperature: float = 1.0,
+    beat_bpm: int | None = None,
+    beat_style: str | None = None,
 ) -> tuple[str | None, str]:
     """
     Generate rap audio from lyrics using Grok Voice API.
@@ -44,6 +68,8 @@ def generate_rap_voice(
         style_instructions: Style/vibe instructions for the voice
         voice_file: Optional path to voice sample for cloning
         temperature: Sampling temperature (higher = more variation)
+        beat_bpm: Optional tempo in BPM for tempo-aware delivery
+        beat_style: Optional beat style for context
 
     Returns:
         Tuple of (audio_file_path, status_message)
@@ -65,11 +91,14 @@ def generate_rap_voice(
     # Truncate lyrics if too long
     lyrics = lyrics[:MAX_INPUT_LENGTH]
 
+    # Enhance style instructions with tempo context
+    enhanced_instructions = _build_tempo_instructions(style_instructions, beat_bpm, beat_style)
+
     payload = {
         "model": "grok-voice",
         "input": lyrics,
         "response_format": "mp3",
-        "instructions": style_instructions,
+        "instructions": enhanced_instructions,
         "voice": voice_base64 or "None",
         "sampling_params": {
             "max_new_tokens": 512,

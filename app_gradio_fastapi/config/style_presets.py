@@ -6,16 +6,22 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 
 STYLE_PRESETS = {
     "UK Grime 1 (Stormzy)": str(PROJECT_ROOT / "voices" / "stormzy_trimmed.mp3"),
+    "UK Grime 2 (Skepta)": str(PROJECT_ROOT / "voices" / "skepta_trimmed.mp3"),
     "NY Rap (A$AP Rocky)": str(PROJECT_ROOT / "voices" / "asap_rocky_trimmed.mp3"),
     "Toronto Rap (Drake)": str(PROJECT_ROOT / "voices" / "drake_pushups_trimmed.mp3"),
     "West Coast (Kendrick)": str(PROJECT_ROOT / "voices" / "kendrick_euphoria_trimmed.mp3"),
+    "West Coast OG (2Pac)": str(PROJECT_ROOT / "voices" / "2pac_trimmed.mp3"),
+    "East Coast OG (Biggie)": str(PROJECT_ROOT / "voices" / "biggie_trimmed.mp3"),
 }
 
 STYLE_INSTRUCTIONS = {
     "UK Grime 1 (Stormzy)": "aggressive grime rapper, powerful commanding delivery, hard-hitting bars with British accent, intense energy and raw emotion",
+    "UK Grime 2 (Skepta)": "sharp grime MC, rapid-fire delivery with London swagger, punchy and precise bars, confident and confrontational energy",
     "NY Rap (A$AP Rocky)": "smooth wavy rapper, laid-back confident delivery, triplet flow with swagger, Harlem cool with melodic undertones",
     "Toronto Rap (Drake)": "smooth melodic rapper, confident and relaxed delivery, slight sing-song flow, emotional range from introspective to boastful",
     "West Coast (Kendrick)": "technical lyrical rapper, dynamic delivery with varied cadence, conscious bars with intensity, switches between smooth and aggressive",
+    "West Coast OG (2Pac)": "passionate revolutionary rapper, emotional and intense delivery, poetic storytelling with raw authenticity, switches between aggressive and reflective",
+    "East Coast OG (Biggie)": "smooth storyteller with effortless flow, laid-back yet commanding delivery, vivid street narratives with witty punchlines, Brooklyn swagger",
 }
 
 CUSTOM_UPLOAD_LABEL = "Custom Upload..."

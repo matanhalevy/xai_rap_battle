@@ -18,6 +18,7 @@ VERSE_PROMPT_TEMPLATE = '''You are a legendary battle rapper known for devastati
 
 BATTLE TOPIC: {topic}
 {description}
+{beat_context}
 
 CURRENT RAPPER: {rapper_name}
 OPPONENT: {opponent_name}
@@ -40,6 +41,7 @@ INSTRUCTIONS:
 7. Include internal rhymes and multisyllabic rhyme schemes
 8. Use character NAMES in lyrics, NEVER use Twitter handles or @ symbols
 9. The scene/venue can be referenced ONCE across all verses, but don't repeat it - focus on the opponent and topic
+10. Match your flow and cadence to the beat style and tempo
 
 OUTPUT FORMAT: Return ONLY the verse lyrics, one bar per line. No explanations, no labels, just the raw lyrics.'''
 
@@ -81,6 +83,21 @@ def _get_verse_context(verse_number: int) -> str:
     return contexts.get(verse_number, "")
 
 
+def _get_beat_flow_guidance(style: str | None, bpm: int | None) -> str:
+    """Generate flow guidance based on beat parameters."""
+    if not style or not bpm:
+        return ""
+
+    guidance = {
+        "trap": f"Rolling hi-hats at {bpm} BPM. Use triplet flows, ad-libs (yeah, what, uh). Leave room for 808 drops.",
+        "boom bap": f"Classic {bpm} BPM groove. Head-nodding pocket flow, emphasize beats 2 and 4. Old school cadence.",
+        "west coast": f"Bouncy g-funk at {bpm} BPM. Smooth, laid-back delivery. Syncopated, melodic phrases.",
+        "drill": f"Aggressive {bpm} BPM. Sliding 808s, menacing tone. Triplet patterns, staccato delivery.",
+    }
+    flow_text = guidance.get(style.lower(), f"Rap at {bpm} BPM tempo.")
+    return f"\nBEAT: {style} at {bpm} BPM\nFLOW GUIDANCE: {flow_text}"
+
+
 def generate_verse(
     rapper_name: str,
     rapper_twitter: str | None,
@@ -91,6 +108,8 @@ def generate_verse(
     scene_description: str,
     previous_verses: list[dict],
     verse_number: int,
+    beat_style: str | None = None,
+    beat_bpm: int | None = None,
 ) -> tuple[str | None, str]:
     """
     Call Grok API to generate a battle rap verse.
@@ -105,6 +124,8 @@ def generate_verse(
         scene_description: Scene setting description
         previous_verses: List of previous verses [{"rapper": "name", "verse": "text"}, ...]
         verse_number: Which verse (1-4)
+        beat_style: Optional beat style (trap, boom bap, west coast, drill)
+        beat_bpm: Optional tempo in BPM
 
     Returns:
         Tuple of (verse_text, status_message)
@@ -132,6 +153,7 @@ def generate_verse(
     prompt = VERSE_PROMPT_TEMPLATE.format(
         topic=topic,
         description=description or "An epic rap battle",
+        beat_context=_get_beat_flow_guidance(beat_style, beat_bpm),
         scene_description=scene_description or "A packed venue with an electric crowd",
         rapper_name=rapper_name,
         opponent_name=opponent_name,
@@ -188,6 +210,8 @@ def generate_all_verses(
     topic: str,
     description: str,
     scene_description: str,
+    beat_style: str | None = None,
+    beat_bpm: int | None = None,
 ) -> tuple[list[str], str]:
     """
     Generate all 4 verses for a complete rap battle.
@@ -202,6 +226,8 @@ def generate_all_verses(
         topic: Battle topic
         description: Battle description
         scene_description: Scene setting description
+        beat_style: Optional beat style (trap, boom bap, west coast, drill)
+        beat_bpm: Optional tempo in BPM
 
     Returns:
         Tuple of (list of 4 verses, status_message)
@@ -228,6 +254,8 @@ def generate_all_verses(
             scene_description=scene_description,
             previous_verses=previous_verses,
             verse_number=verse_num,
+            beat_style=beat_style,
+            beat_bpm=beat_bpm,
         )
 
         if verse_text is None:

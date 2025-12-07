@@ -19,7 +19,10 @@ from app_gradio_fastapi.services.script_parser import (
     BattleSegment,
     Speaker,
 )
-from app_gradio_fastapi.services.grok_image_api import generate_all_storyboards
+from app_gradio_fastapi.services.grok_image_api import (
+    generate_all_storyboards,
+    edit_all_storyboards,
+)
 from app_gradio_fastapi.services.runway_api import generate_all_videos
 from app_gradio_fastapi.services.sync_labs_api import (
     upload_files_for_lipsync,
@@ -53,6 +56,8 @@ def run_storyboard_pipeline(
     beat_path: str | None = None,
     speaker_a_name: str = "",
     speaker_b_name: str = "",
+    speaker_a_image: str | None = None,
+    speaker_b_image: str | None = None,
     character_a_desc: str = "intense male rapper in streetwear, hood up, gold chains",
     character_b_desc: str = "confident female rapper in urban fashion, braids, bold makeup",
     skip_video_generation: bool = False,
@@ -69,8 +74,10 @@ def run_storyboard_pipeline(
         beat_path: Optional path to the beat/instrumental track (continuous underneath)
         speaker_a_name: Name of speaker A as it appears in script (e.g., "Elon Musk")
         speaker_b_name: Name of speaker B as it appears in script (e.g., "Sam Altman")
-        character_a_desc: Visual description of speaker A for image generation
-        character_b_desc: Visual description of speaker B for image generation
+        speaker_a_image: Reference photo for speaker A (enables edit mode for face preservation)
+        speaker_b_image: Reference photo for speaker B (enables edit mode for face preservation)
+        character_a_desc: Visual description of speaker A for image generation (ignored if speaker_a_image provided)
+        character_b_desc: Visual description of speaker B for image generation (ignored if speaker_b_image provided)
         skip_video_generation: If True, only generate images (faster for testing)
         enable_lipsync: If True, use Sync Labs for lip sync (requires URL hosting)
         test_mode: If True, only generate 3 segments (A, B, conclusion) to save credits
@@ -106,13 +113,25 @@ def run_storyboard_pipeline(
         status_messages.append(f"  - {seg.speaker.value}: {len(seg.verses)} verses")
 
     # Step 2: Generate storyboard images
-    status_messages.append("Generating storyboard images with Grok...")
-    storyboard_images, img_status = generate_all_storyboards(
-        segments=segments,
-        theme=theme,
-        character_a_desc=character_a_desc,
-        character_b_desc=character_b_desc,
-    )
+    # Use edit mode (Image Edit API) if reference photos provided, otherwise use generation mode
+    use_reference_photos = speaker_a_image and speaker_b_image
+
+    if use_reference_photos:
+        status_messages.append("Generating storyboards from reference photos (Edit API)...")
+        storyboard_images, img_status = edit_all_storyboards(
+            segments=segments,
+            theme=theme,
+            speaker_a_image=speaker_a_image,
+            speaker_b_image=speaker_b_image,
+        )
+    else:
+        status_messages.append("Generating storyboard images with Grok...")
+        storyboard_images, img_status = generate_all_storyboards(
+            segments=segments,
+            theme=theme,
+            character_a_desc=character_a_desc,
+            character_b_desc=character_b_desc,
+        )
     status_messages.append(img_status)
 
     if len(storyboard_images) != len(segments):
@@ -219,11 +238,21 @@ def run_storyboard_only(
     theme: str,
     character_a_desc: str = "intense male rapper in streetwear",
     character_b_desc: str = "confident female rapper in urban fashion",
+    speaker_a_image: str | None = None,
+    speaker_b_image: str | None = None,
 ) -> tuple[list[str], list[str]]:
     """
     Run only the storyboard image generation (no video/audio).
 
     Useful for quick previews.
+
+    Args:
+        script: The rap battle script
+        theme: Visual theme
+        character_a_desc: Visual description for speaker A (ignored if speaker_a_image provided)
+        character_b_desc: Visual description for speaker B (ignored if speaker_b_image provided)
+        speaker_a_image: Reference photo for speaker A (enables edit mode)
+        speaker_b_image: Reference photo for speaker B (enables edit mode)
 
     Returns:
         Tuple of (image_paths, status_messages)
@@ -234,12 +263,24 @@ def run_storyboard_only(
     segments = ensure_five_segments(segments)
     status_messages.append(f"Parsed {len(segments)} segments")
 
-    storyboard_images, img_status = generate_all_storyboards(
-        segments=segments,
-        theme=theme,
-        character_a_desc=character_a_desc,
-        character_b_desc=character_b_desc,
-    )
+    # Use edit mode if reference photos provided
+    use_reference_photos = speaker_a_image and speaker_b_image
+
+    if use_reference_photos:
+        status_messages.append("Using reference photos (Edit API)...")
+        storyboard_images, img_status = edit_all_storyboards(
+            segments=segments,
+            theme=theme,
+            speaker_a_image=speaker_a_image,
+            speaker_b_image=speaker_b_image,
+        )
+    else:
+        storyboard_images, img_status = generate_all_storyboards(
+            segments=segments,
+            theme=theme,
+            character_a_desc=character_a_desc,
+            character_b_desc=character_b_desc,
+        )
     status_messages.append(img_status)
 
     return storyboard_images, status_messages
