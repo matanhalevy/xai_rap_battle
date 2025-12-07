@@ -19,13 +19,16 @@ from app_gradio_fastapi.services.grok_image_api import generate_storyboard_image
 from app_gradio_fastapi.services.runway_api import generate_video_from_image
 from app_gradio_fastapi.services.sync_labs_api import lipsync_video
 from app_gradio_fastapi.services.video_composer import compose_with_audio_clips
-from app_gradio_fastapi.config.style_presets import get_preset_path
+from app_gradio_fastapi.config.style_presets import get_preset_path, get_style_instructions
+from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
 
 
 class BattleStage(str, Enum):
     """Pipeline stages for full battle generation."""
     QUEUED = "queued"
     PARSING = "parsing"
+    STYLE_REF_A = "style_ref_a"  # Create style reference for Fighter A (ElevenLabs)
+    STYLE_REF_B = "style_ref_b"  # Create style reference for Fighter B (ElevenLabs)
     VOICE_A = "voice_a"
     VOICE_B = "voice_b"
     BPM_DETECT = "bpm_detect"
@@ -221,55 +224,126 @@ class BattleManager:
             )
             await asyncio.sleep(0.3)
 
-            # Stage 2: Generate Fighter A voice
+            # Stage 2: Create Style Reference A (ElevenLabs voice + style transfer)
+            await cls._emit_update(
+                battle_id,
+                stage=BattleStage.STYLE_REF_A,
+                progress=4.0,
+                message=f"Creating style reference for {config.fighter_a_name}..."
+            )
+
+            # Get voice identity (user's upload) and style source (preset clip)
+            voice_identity_a = config.fighter_a_voice_path
+            style_source_a = get_preset_path(config.fighter_a_style)
+
+            if voice_identity_a and style_source_a:
+                # Combine voice identity + style via ElevenLabs speech-to-speech
+                # celebrity_mode=True pitch shifts to evade voice detection, then reverses after
+                style_ref_a, voice_id_a, status_a = await asyncio.to_thread(
+                    create_style_reference,
+                    voice_identity_file=voice_identity_a,
+                    style_source_file=style_source_a,
+                    reference_name=f"{config.fighter_a_name}_style",
+                    celebrity_mode=True,
+                    stability=0.5,
+                    similarity_boost=0.85,
+                )
+                if not style_ref_a:
+                    logging.warning(f"Style transfer failed for {config.fighter_a_name}: {status_a}, falling back")
+                    style_ref_a = voice_identity_a or style_source_a
+            else:
+                # Fallback: use whichever is available
+                style_ref_a = voice_identity_a or style_source_a
+
+            await cls._emit_update(
+                battle_id,
+                progress=10.0,
+                message=f"{config.fighter_a_name} style reference ready"
+            )
+
+            # Stage 3: Create Style Reference B (ElevenLabs voice + style transfer)
+            await cls._emit_update(
+                battle_id,
+                stage=BattleStage.STYLE_REF_B,
+                progress=12.0,
+                message=f"Creating style reference for {config.fighter_b_name}..."
+            )
+
+            voice_identity_b = config.fighter_b_voice_path
+            style_source_b = get_preset_path(config.fighter_b_style)
+
+            if voice_identity_b and style_source_b:
+                # Combine voice identity + style via ElevenLabs speech-to-speech
+                # celebrity_mode=True pitch shifts to evade voice detection, then reverses after
+                style_ref_b, voice_id_b, status_b = await asyncio.to_thread(
+                    create_style_reference,
+                    voice_identity_file=voice_identity_b,
+                    style_source_file=style_source_b,
+                    reference_name=f"{config.fighter_b_name}_style",
+                    celebrity_mode=True,
+                    stability=0.5,
+                    similarity_boost=0.85,
+                )
+                if not style_ref_b:
+                    logging.warning(f"Style transfer failed for {config.fighter_b_name}: {status_b}, falling back")
+                    style_ref_b = voice_identity_b or style_source_b
+            else:
+                # Fallback: use whichever is available
+                style_ref_b = voice_identity_b or style_source_b
+
+            await cls._emit_update(
+                battle_id,
+                progress=18.0,
+                message=f"{config.fighter_b_name} style reference ready"
+            )
+
+            # Stage 4: Generate Fighter A voice (Grok with style reference)
             await cls._emit_update(
                 battle_id,
                 stage=BattleStage.VOICE_A,
-                progress=5.0,
+                progress=20.0,
                 message=f"Generating voice for {config.fighter_a_name}..."
             )
 
-            voice_a_path = config.fighter_a_voice_path or get_preset_path(config.fighter_a_style)
-            audio_a, status_a = await asyncio.to_thread(
+            audio_a, gen_status_a = await asyncio.to_thread(
                 generate_rap_voice,
                 lyrics=config.fighter_a_lyrics,
-                style_instructions=f"aggressive battle rapper, {config.fighter_a_name} style",
-                voice_file=voice_a_path
+                style_instructions=get_style_instructions(config.fighter_a_style) or f"aggressive battle rapper, {config.fighter_a_name} style",
+                voice_file=style_ref_a
             )
 
             if not audio_a:
-                raise Exception(f"Failed to generate voice for {config.fighter_a_name}: {status_a}")
+                raise Exception(f"Failed to generate voice for {config.fighter_a_name}: {gen_status_a}")
 
             await cls._emit_update(
                 battle_id,
-                progress=15.0,
+                progress=26.0,
                 message=f"{config.fighter_a_name} voice complete"
             )
 
-            # Stage 3: Generate Fighter B voice
+            # Stage 5: Generate Fighter B voice (Grok with style reference)
             await cls._emit_update(
                 battle_id,
                 stage=BattleStage.VOICE_B,
-                progress=18.0,
+                progress=28.0,
                 message=f"Generating voice for {config.fighter_b_name}..."
             )
 
-            voice_b_path = config.fighter_b_voice_path or get_preset_path(config.fighter_b_style)
-            audio_b, status_b = await asyncio.to_thread(
+            audio_b, gen_status_b = await asyncio.to_thread(
                 generate_rap_voice,
                 lyrics=config.fighter_b_lyrics,
-                style_instructions=f"aggressive battle rapper, {config.fighter_b_name} style",
-                voice_file=voice_b_path
+                style_instructions=get_style_instructions(config.fighter_b_style) or f"aggressive battle rapper, {config.fighter_b_name} style",
+                voice_file=style_ref_b
             )
 
             if not audio_b:
-                raise Exception(f"Failed to generate voice for {config.fighter_b_name}: {status_b}")
+                raise Exception(f"Failed to generate voice for {config.fighter_b_name}: {gen_status_b}")
 
             state.audio_clips = [audio_a, audio_b]
 
             await cls._emit_update(
                 battle_id,
-                progress=28.0,
+                progress=34.0,
                 message=f"{config.fighter_b_name} voice complete"
             )
 

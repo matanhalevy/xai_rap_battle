@@ -106,7 +106,7 @@ const elements = {
 
 // Stage elements (full pipeline with video)
 const stages = {
-    parsing: document.getElementById('stage-parsing'),
+    setup: document.getElementById('stage-setup'),
     voice_a: document.getElementById('stage-voice_a'),
     voice_b: document.getElementById('stage-voice_b'),
     bpm_detect: document.getElementById('stage-bpm_detect'),
@@ -116,6 +116,22 @@ const stages = {
     video: document.getElementById('stage-video'),
     lipsync: document.getElementById('stage-lipsync'),
     compose: document.getElementById('stage-compose')
+};
+
+// Map backend stages to UI stages (parsing + style_ref_a + style_ref_b all map to "setup")
+const stageMapping = {
+    'parsing': 'setup',
+    'style_ref_a': 'setup',
+    'style_ref_b': 'setup',
+    'voice_a': 'voice_a',
+    'voice_b': 'voice_b',
+    'bpm_detect': 'bpm_detect',
+    'beat_gen': 'beat_gen',
+    'mixing': 'mixing',
+    'storyboard': 'storyboard',
+    'video': 'video',
+    'lipsync': 'lipsync',
+    'compose': 'compose'
 };
 
 // ============================================
@@ -617,10 +633,14 @@ function handleProgressUpdate(data) {
 }
 
 function updateStageUI(currentStage) {
-    const stageOrder = ['parsing', 'voice_a', 'voice_b', 'bpm_detect', 'beat_gen', 'mixing'];
-    const currentIndex = stageOrder.indexOf(currentStage);
+    // UI stage order (merged setup stage)
+    const uiStageOrder = ['setup', 'voice_a', 'voice_b', 'bpm_detect', 'beat_gen', 'mixing', 'storyboard', 'video', 'lipsync', 'compose'];
 
-    stageOrder.forEach((stage, index) => {
+    // Map backend stage to UI stage
+    const mappedStage = stageMapping[currentStage] || currentStage;
+    const currentIndex = uiStageOrder.indexOf(mappedStage);
+
+    uiStageOrder.forEach((stage, index) => {
         const stageEl = stages[stage];
         if (!stageEl) return;
 
