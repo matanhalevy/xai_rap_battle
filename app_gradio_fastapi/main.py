@@ -1,5 +1,6 @@
 import gradio as gr
 from fastapi import FastAPI
+from functools import partial
 
 from app_gradio_fastapi import routes
 from app_gradio_fastapi.helpers.formatters import request_formatter
@@ -9,6 +10,12 @@ from app_gradio_fastapi.services.elevenlabs_api import create_style_reference
 from app_gradio_fastapi.services.beat_api import generate_beat_pattern
 from app_gradio_fastapi.services.beat_generator import get_generator
 from app_gradio_fastapi.services.storyboard_pipeline import run_storyboard_pipeline, run_storyboard_only
+from app_gradio_fastapi.config.style_presets import (
+    get_dropdown_choices,
+    get_preset_path,
+    CUSTOM_UPLOAD_LABEL,
+)
+
 
 
 change_logging()
@@ -28,29 +35,50 @@ def handle_rap_generation(lyrics: str, style: str, voice_file: str | None):
     return audio_path, status
 
 
-# Store the last created style reference for use in Stage 2
-_style_reference_cache = {"path": None, "voice_id": None}
+# Store style references for both characters
+_style_reference_cache = {
+    "char1": {"path": None, "voice_id": None},
+    "char2": {"path": None, "voice_id": None},
+}
+
+
+def resolve_style_source(dropdown_value: str, custom_file) -> str | None:
+    """Resolve style source from dropdown preset or custom upload."""
+    preset_path = get_preset_path(dropdown_value)
+    if preset_path:
+        return preset_path
+    if custom_file is not None:
+        return custom_file.name if hasattr(custom_file, "name") else custom_file
+    return None
+
+
+def update_custom_visibility(selection: str):
+    """Show custom upload only when 'Custom Upload...' is selected."""
+    return gr.update(visible=(selection == CUSTOM_UPLOAD_LABEL))
 
 
 def handle_create_style_reference(
+    character: str,
     voice_identity_file,
-    style_source_file,
+    style_dropdown: str,
+    custom_style_file,
     reference_name: str,
     celebrity_mode: bool,
     stability: float,
     similarity_boost: float,
 ):
-    """Stage 1: Create voice+style reference from two audio files."""
+    """Stage 1: Create voice+style reference for a specific character."""
     if voice_identity_file is None:
-        return None, "Error: Please upload a voice identity file"
-    if style_source_file is None:
-        return None, "Error: Please upload a style source file"
+        return None, f"Error: Please upload a voice identity file for {character}"
 
-    # Get file paths from Gradio file objects
+    # Resolve style source from dropdown or custom upload
+    style_path = resolve_style_source(style_dropdown, custom_style_file)
+    if not style_path:
+        return None, "Error: Please select a style preset or upload a custom style file"
+
+    # Get file path from Gradio file object
     voice_path = voice_identity_file.name if hasattr(voice_identity_file, "name") else voice_identity_file
-    style_path = style_source_file.name if hasattr(style_source_file, "name") else style_source_file
-
-    name = reference_name.strip() if reference_name.strip() else "custom_voice"
+    name = reference_name.strip() if reference_name.strip() else character
 
     output_path, voice_id, status = create_style_reference(
         voice_identity_file=voice_path,
@@ -63,24 +91,25 @@ def handle_create_style_reference(
 
     # Cache for Stage 2
     if output_path:
-        _style_reference_cache["path"] = output_path
-        _style_reference_cache["voice_id"] = voice_id
+        _style_reference_cache[character]["path"] = output_path
+        _style_reference_cache[character]["voice_id"] = voice_id
 
     return output_path, status
 
 
-def handle_generate_with_style(lyrics: str, style_reference_file, style_instructions: str):
-    """Stage 2: Generate new lyrics using the style reference."""
-    if not lyrics.strip():
-        return None, "Error: Please enter rap lyrics"
+# Create partial handlers for each character
+handle_create_ref_char1 = partial(handle_create_style_reference, "char1")
+handle_create_ref_char2 = partial(handle_create_style_reference, "char2")
 
-    # Use uploaded file or cached reference
-    if style_reference_file is not None:
-        ref_path = style_reference_file.name if hasattr(style_reference_file, "name") else style_reference_file
-    elif _style_reference_cache["path"]:
-        ref_path = _style_reference_cache["path"]
-    else:
-        return None, "Error: Please create a style reference first (Stage 1) or upload one"
+
+def handle_generate_with_style(character: str, lyrics: str, style_instructions: str):
+    """Stage 2: Generate new lyrics using the style reference for a specific character."""
+    if not lyrics.strip():
+        return None, f"Error: Please enter rap lyrics for {character}"
+
+    ref_path = _style_reference_cache[character]["path"]
+    if not ref_path:
+        return None, f"Error: Please create a style reference for {character} first (Stage 1)"
 
     # Use xAI TTS with the style reference as voice sample
     audio_path, status = generate_rap_voice(
@@ -89,6 +118,11 @@ def handle_generate_with_style(lyrics: str, style_reference_file, style_instruct
         voice_file=ref_path,
     )
     return audio_path, status
+
+
+# Create partial handlers for each character
+handle_generate_char1 = partial(handle_generate_with_style, "char1")
+handle_generate_char2 = partial(handle_generate_with_style, "char2")
 
 
 def handle_beat_generation(style: str, bpm: int, bars: int, loops: int):
@@ -206,102 +240,185 @@ with gr.Blocks(title="Grok DJ Rap Battle") as demo:
             )
 
         with gr.TabItem("Style Transfer"):
-            gr.Markdown("""## Voice Style Transfer
-Transform one voice into another while preserving delivery style and cadence.
-
-**Stage 1**: Combine a voice identity (e.g., Elon) with a delivery style (e.g., Stormzy's rap)
-**Stage 2**: Generate new lyrics using the combined voice+style
+            gr.Markdown("""## Rap Battle Style Transfer
+Configure two characters for your rap battle. Each character has a unique voice identity and delivery style.
             """)
 
-            gr.Markdown("### Stage 1: Create Voice + Style Reference")
+            gr.Markdown("### Stage 1: Create Voice + Style References")
             with gr.Row():
+                # Character 1
                 with gr.Column():
-                    voice_identity_upload = gr.File(
+                    gr.Markdown("#### Character 1")
+                    char1_voice_identity = gr.File(
                         label="Voice Identity (who to sound like)",
                         file_types=[".mp3", ".m4a", ".wav"],
                     )
-                    style_source_upload = gr.File(
-                        label="Style Source (delivery/cadence to copy)",
-                        file_types=[".mp3", ".m4a", ".wav"],
+                    char1_style_dropdown = gr.Dropdown(
+                        choices=get_dropdown_choices(),
+                        value=get_dropdown_choices()[0],
+                        label="Style Source",
                     )
-                    reference_name_input = gr.Textbox(
+                    char1_custom_style = gr.File(
+                        label="Custom Style File",
+                        file_types=[".mp3", ".m4a", ".wav"],
+                        visible=False,
+                    )
+                    char1_reference_name = gr.Textbox(
                         label="Reference Name",
-                        value="custom_voice",
+                        value="character_1",
                         placeholder="e.g., Elon Rapper",
                     )
-                    celebrity_mode_checkbox = gr.Checkbox(
+                    char1_celebrity_mode = gr.Checkbox(
                         label="Celebrity Voice Mode",
                         value=False,
-                        info="Enable if ElevenLabs blocks the voice. Applies pitch shifting to evade detection.",
+                        info="Enable if ElevenLabs blocks the voice.",
                     )
-                    with gr.Accordion("Voice Settings", open=True):
-                        similarity_slider = gr.Slider(
-                            minimum=0.0,
-                            maximum=1.0,
-                            value=0.85,
-                            step=0.05,
+                    with gr.Accordion("Voice Settings", open=False):
+                        char1_similarity = gr.Slider(
+                            minimum=0.0, maximum=1.0, value=0.85, step=0.05,
                             label="Similarity Boost",
-                            info="Higher = more like voice identity. Try 0.9+ if output sounds too much like style source.",
+                            info="Higher = more like voice identity.",
                         )
-                        stability_slider = gr.Slider(
-                            minimum=0.0,
-                            maximum=1.0,
-                            value=0.5,
-                            step=0.05,
+                        char1_stability = gr.Slider(
+                            minimum=0.0, maximum=1.0, value=0.5, step=0.05,
                             label="Stability",
-                            info="Higher = more consistent voice. Lower = more expressive/variable.",
+                            info="Higher = more consistent voice.",
                         )
-                    create_reference_btn = gr.Button("Create Style Reference", variant="primary")
+                    char1_create_btn = gr.Button("Create Reference 1", variant="primary")
+                    char1_ref_audio = gr.Audio(label="Reference Output", type="filepath")
+                    char1_ref_status = gr.Textbox(label="Status", interactive=False)
 
+                # Character 2
                 with gr.Column():
-                    reference_audio_output = gr.Audio(
-                        label="Style Reference Output",
-                        type="filepath",
+                    gr.Markdown("#### Character 2")
+                    char2_voice_identity = gr.File(
+                        label="Voice Identity (who to sound like)",
+                        file_types=[".mp3", ".m4a", ".wav"],
                     )
-                    reference_status_output = gr.Textbox(label="Status", interactive=False)
+                    char2_style_dropdown = gr.Dropdown(
+                        choices=get_dropdown_choices(),
+                        value=get_dropdown_choices()[0],
+                        label="Style Source",
+                    )
+                    char2_custom_style = gr.File(
+                        label="Custom Style File",
+                        file_types=[".mp3", ".m4a", ".wav"],
+                        visible=False,
+                    )
+                    char2_reference_name = gr.Textbox(
+                        label="Reference Name",
+                        value="character_2",
+                        placeholder="e.g., Zuck Rapper",
+                    )
+                    char2_celebrity_mode = gr.Checkbox(
+                        label="Celebrity Voice Mode",
+                        value=False,
+                        info="Enable if ElevenLabs blocks the voice.",
+                    )
+                    with gr.Accordion("Voice Settings", open=False):
+                        char2_similarity = gr.Slider(
+                            minimum=0.0, maximum=1.0, value=0.85, step=0.05,
+                            label="Similarity Boost",
+                            info="Higher = more like voice identity.",
+                        )
+                        char2_stability = gr.Slider(
+                            minimum=0.0, maximum=1.0, value=0.5, step=0.05,
+                            label="Stability",
+                            info="Higher = more consistent voice.",
+                        )
+                    char2_create_btn = gr.Button("Create Reference 2", variant="primary")
+                    char2_ref_audio = gr.Audio(label="Reference Output", type="filepath")
+                    char2_ref_status = gr.Textbox(label="Status", interactive=False)
 
-            create_reference_btn.click(
-                fn=handle_create_style_reference,
+            # Dropdown visibility toggles
+            char1_style_dropdown.change(
+                fn=update_custom_visibility,
+                inputs=[char1_style_dropdown],
+                outputs=[char1_custom_style],
+            )
+            char2_style_dropdown.change(
+                fn=update_custom_visibility,
+                inputs=[char2_style_dropdown],
+                outputs=[char2_custom_style],
+            )
+
+            # Stage 1 buttons
+            char1_create_btn.click(
+                fn=handle_create_ref_char1,
                 inputs=[
-                    voice_identity_upload,
-                    style_source_upload,
-                    reference_name_input,
-                    celebrity_mode_checkbox,
-                    stability_slider,
-                    similarity_slider,
+                    char1_voice_identity,
+                    char1_style_dropdown,
+                    char1_custom_style,
+                    char1_reference_name,
+                    char1_celebrity_mode,
+                    char1_stability,
+                    char1_similarity,
                 ],
-                outputs=[reference_audio_output, reference_status_output],
+                outputs=[char1_ref_audio, char1_ref_status],
+            )
+            char2_create_btn.click(
+                fn=handle_create_ref_char2,
+                inputs=[
+                    char2_voice_identity,
+                    char2_style_dropdown,
+                    char2_custom_style,
+                    char2_reference_name,
+                    char2_celebrity_mode,
+                    char2_stability,
+                    char2_similarity,
+                ],
+                outputs=[char2_ref_audio, char2_ref_status],
             )
 
             gr.Markdown("---")
-            gr.Markdown("### Stage 2: Generate New Lyrics with Style")
+            gr.Markdown("### Stage 2: Generate Lyrics")
             with gr.Row():
+                # Character 1 Lyrics
                 with gr.Column():
-                    style_lyrics_input = gr.Textbox(
+                    gr.Markdown("#### Character 1")
+                    char1_lyrics = gr.Textbox(
                         lines=8,
-                        placeholder="Enter your rap lyrics here...\n\nExample:\nYo, I'm Elon and I'm here to say,\nBuilding rockets every single day,\nMars is calling, we're on our way,\nSpaceX rockets, no delay!",
+                        placeholder="Enter rap lyrics for Character 1...\n\nExample:\nYo, I'm the first one on the mic,\nSpitting fire bars that you'll like,\nMy flow is cold, my rhymes are tight,\nStep to me? You'll lose the fight!",
                         label="Rap Lyrics",
                     )
-                    style_reference_upload = gr.File(
-                        label="Style Reference (optional - uses Stage 1 output if empty)",
-                        file_types=[".mp3", ".m4a", ".wav"],
-                    )
-                    style_instructions_input = gr.Textbox(
+                    char1_style_instructions = gr.Textbox(
                         lines=2,
                         placeholder="e.g., aggressive rapper with rhythmic flow",
-                        label="Additional Style Instructions",
+                        label="Style Instructions",
                         value="aggressive rapper with rhythmic flow",
                     )
-                    generate_style_btn = gr.Button("Generate Rap with Style", variant="primary")
+                    char1_generate_btn = gr.Button("Generate Rap 1", variant="primary")
+                    char1_audio_output = gr.Audio(label="Generated Audio", type="filepath")
+                    char1_gen_status = gr.Textbox(label="Status", interactive=False)
 
+                # Character 2 Lyrics
                 with gr.Column():
-                    style_audio_output = gr.Audio(label="Generated Audio", type="filepath")
-                    style_status_output = gr.Textbox(label="Status", interactive=False)
+                    gr.Markdown("#### Character 2")
+                    char2_lyrics = gr.Textbox(
+                        lines=8,
+                        placeholder="Enter rap lyrics for Character 2...\n\nExample:\nHold up, let me take the stage,\nI'm about to turn the page,\nMy verses hit with so much rage,\nI'm the champion of this age!",
+                        label="Rap Lyrics",
+                    )
+                    char2_style_instructions = gr.Textbox(
+                        lines=2,
+                        placeholder="e.g., aggressive rapper with rhythmic flow",
+                        label="Style Instructions",
+                        value="aggressive rapper with rhythmic flow",
+                    )
+                    char2_generate_btn = gr.Button("Generate Rap 2", variant="primary")
+                    char2_audio_output = gr.Audio(label="Generated Audio", type="filepath")
+                    char2_gen_status = gr.Textbox(label="Status", interactive=False)
 
-            generate_style_btn.click(
-                fn=handle_generate_with_style,
-                inputs=[style_lyrics_input, style_reference_upload, style_instructions_input],
-                outputs=[style_audio_output, style_status_output],
+            # Stage 2 buttons
+            char1_generate_btn.click(
+                fn=handle_generate_char1,
+                inputs=[char1_lyrics, char1_style_instructions],
+                outputs=[char1_audio_output, char1_gen_status],
+            )
+            char2_generate_btn.click(
+                fn=handle_generate_char2,
+                inputs=[char2_lyrics, char2_style_instructions],
+                outputs=[char2_audio_output, char2_gen_status],
             )
 
         with gr.TabItem("Beat Generator"):

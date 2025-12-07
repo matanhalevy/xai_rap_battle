@@ -16,6 +16,7 @@ RUN . ${ROOT_DIR}/venv/bin/activate && pip install --no-cache-dir -r ${ROOT_DIR}
 
 COPY ./scripts ${ROOT_DIR}/scripts
 COPY ./${PACKAGE_NAME} ${ROOT_DIR}/${PACKAGE_NAME}
+COPY ./voices ${ROOT_DIR}/voices
 
 # Copy environment files (if they exist)
 COPY ./.env* ${ROOT_DIR}/
