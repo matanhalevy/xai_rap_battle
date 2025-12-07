@@ -1,2 +1,6 @@
 gradio
 fastapi
+requests
+pydantic
+python-dotenv
+uvicorn
